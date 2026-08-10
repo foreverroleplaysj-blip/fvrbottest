@@ -182,8 +182,10 @@ Controleer in-game of de `Bank`-waarde van de speler is aangepast (kan tot 3 sec
 ## 16. `/setjob` testen
 
 ```
-/setjob discord:@Speler job:Politie
+/setjob discord:@Speler job:police niveau:3
 ```
+
+Typ tijdens het invullen van `job:` een stukje van de naam (bv. "poli" of "gang_g") — Discord toont dan live suggesties uit de volledige lijst. Dit zet de gekozen job-`IntValue` in de `Jobs`-folder van de speler op het opgegeven niveau, en zet alle andere jobs terug naar 0 (net als je bestaande in-game commando).
 
 ## 17. `/setrank` testen
 
@@ -244,7 +246,7 @@ Zorg dat `API_URL` in het Roblox script en `API_BASE_URL` in `.env` de `https://
 [ ] Roblox verificatie werkt (/verify FVR-XXXXXX in-game)
 [ ] /userinfo werkt
 [ ] /give-money werkt (bedrag verandert in-game)
-[ ] /setjob werkt
+[ ] /setjob werkt (job + niveau, incl. autocomplete-suggesties)
 [ ] /setrank werkt
 [ ] /online werkt (toont spelers/servers)
 [ ] /announce werkt (bericht verschijnt in-game)
@@ -263,6 +265,18 @@ Dankzij de generieke command-queue-architectuur (`api/routes/commands.js` + `rob
 3. **Bot:** maak een nieuw bestand in `bot/commands/` naar het patroon van bijvoorbeeld `setjob.js`, en voeg het toe aan `MANAGEMENT_COMMANDS` of `STAFF_COMMANDS` in `bot/utils/permissions.js`.
 
 Geplande uitbreidingen zoals `/give-item`, `/setxp`, `/whitelist` passen allemaal in dit patroon zonder de kernqueue aan te passen.
+
+---
+
+## 🧑‍💼 Job-lijst synchroon houden
+
+Je jobsysteem (incl. gangs) draait op een `Jobs`-folder onder elke Player met een `IntValue` per job — precies zoals je bestaande `setjobconfig` ModuleScript dat al opzet. Er zijn nu **3 plekken** met dezelfde lijst:
+
+1. **`ServerScriptService.setjobconfig`** (in Roblox Studio) — de echte bron van waarheid, hier maakt je game de daadwerkelijke `IntValue`-objecten aan.
+2. **`roblox/ForeverIntegration.server.lua`** → `Config.AllowedJobs` — whitelist die de integratie gebruikt om te checken of een job geldig is voordat hij 'm instelt.
+3. **`shared/jobs.js`** — dezelfde lijst, gebruikt door de bot (autocomplete + validatie) en de API (validatie).
+
+**Voeg je een nieuwe job toe?** Doe dat in `setjobconfig` zoals gewoonlijk, en kopieer dezelfde exacte naam (hoofdlettergevoelig!) naar zowel `Config.AllowedJobs` in het Lua-script als de `JOBS`-array in `shared/jobs.js`. Vergeet je dit, dan werkt `/setjob` voor die job niet (de bot/API wijst 'm af vóórdat hij ooit bij Roblox komt).
 
 ---
 

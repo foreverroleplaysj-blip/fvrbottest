@@ -13,13 +13,14 @@ const {
   isValidAccount,
   isPositiveInteger,
 } = require('../utils/validate');
+const { isValidJob } = require('../../shared/jobs');
 
 const router = express.Router();
 
 const COMMAND_TTL_MS = 5 * 60 * 1000; // Commands expire after 5 minutes if not picked up
 const MAX_MONEY_AMOUNT = parseInt(process.env.MAX_MONEY_AMOUNT, 10) || 1000000;
 const MAX_RANK_LEVEL = parseInt(process.env.MAX_RANK_LEVEL, 10) || 20;
-const MAX_GANG_LEVEL = parseInt(process.env.MAX_GANG_LEVEL, 10) || 10;
+const MAX_JOB_LEVEL = parseInt(process.env.MAX_JOB_LEVEL, 10) || 100;
 
 function logAudit(action, discordId, robloxId, details) {
   db.prepare(
@@ -45,26 +46,17 @@ function validatePayload(type, payload) {
       return null;
 
     case 'set_job':
-      if (typeof payload.job !== 'string' || payload.job.length < 1 || payload.job.length > 64) {
-        return 'job must be a non-empty string';
+      if (!isValidJob(payload.job)) {
+        return 'job must be a valid job from the whitelist';
+      }
+      if (!isPositiveInteger(payload.level, MAX_JOB_LEVEL) || payload.level < 1) {
+        return `level must be an integer between 1 and ${MAX_JOB_LEVEL}`;
       }
       return null;
 
     case 'set_rank':
       if (!isPositiveInteger(payload.rank, MAX_RANK_LEVEL)) {
         return `rank must be an integer between 0 and ${MAX_RANK_LEVEL}`;
-      }
-      return null;
-
-    case 'set_gang':
-      if (typeof payload.gang !== 'string' || payload.gang.length < 1 || payload.gang.length > 16) {
-        return 'gang must be a non-empty string';
-      }
-      return null;
-
-    case 'set_gang_level':
-      if (!isPositiveInteger(payload.level, MAX_GANG_LEVEL)) {
-        return `level must be an integer between 0 and ${MAX_GANG_LEVEL}`;
       }
       return null;
 

@@ -38,6 +38,18 @@ client.once('ready', () => {
 
 // ---- Interaction handling ----
 client.on('interactionCreate', async (interaction) => {
+  if (interaction.isAutocomplete()) {
+    const command = client.commands.get(interaction.commandName);
+    if (!command?.autocomplete) return;
+
+    try {
+      await command.autocomplete(interaction);
+    } catch (err) {
+      logger.error(`Fout bij autocomplete van /${interaction.commandName}:`, err);
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const command = client.commands.get(interaction.commandName);
