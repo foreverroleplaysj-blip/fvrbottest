@@ -15,6 +15,7 @@ const ALLOWED_COMMAND_TYPES = new Set([
   'unban',
   'kick',
   'announce',
+  'shutdown',
 ]);
 
 const ALLOWED_ACCOUNTS = new Set(['Contant', 'Bank']);

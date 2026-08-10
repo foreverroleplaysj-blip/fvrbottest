@@ -396,6 +396,24 @@ CommandHandlers["announce"] = function(_, payload)
 	return true, "Aankondiging weergegeven"
 end
 
+CommandHandlers["shutdown"] = function(_, payload)
+	local delaySeconds = tonumber(payload.delaySeconds) or 10
+	local message = payload.message or "De server gaat binnenkort herstarten."
+
+	announceToAllPlayers(("%s (herstart over %ds)"):format(message, delaySeconds))
+
+	-- Kick everyone after the countdown. Fired off async so this handler can
+	-- report success immediately without blocking the polling loop.
+	task.spawn(function()
+		task.wait(delaySeconds)
+		for _, plr in ipairs(Players:GetPlayers()) do
+			plr:Kick("Forever RP: " .. message)
+		end
+	end)
+
+	return true, ("Shutdown gepland over %d seconden"):format(delaySeconds)
+end
+
 ----------------------------------------------------------------
 -- BAN CHECK ON JOIN
 ----------------------------------------------------------------
@@ -503,8 +521,8 @@ local function processCommand(command)
 		return
 	end
 
-	-- Broadcast-type commands (announce) don't target a specific player.
-	if command.type == "announce" then
+	-- Broadcast-type commands (announce, shutdown) don't target a specific player.
+	if command.type == "announce" or command.type == "shutdown" then
 		local ok, message = handler(nil, command.payload)
 		completeCommand(command.id, ok, message)
 		return

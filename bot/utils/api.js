@@ -58,6 +58,8 @@ const api = {
   getVerificationByDiscordId: (discordId) =>
     request('GET', `/verification/${discordId}`),
 
+  getAllVerifications: () => request('GET', '/verification/list'),
+
   unverify: (discordId, actorDiscordId) =>
     request('POST', '/verification/unverify', { discordId, actorDiscordId }),
 

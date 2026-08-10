@@ -81,6 +81,21 @@ function validatePayload(type, payload) {
       }
       return null;
 
+    case 'shutdown':
+      if (payload.message !== undefined && typeof payload.message !== 'string') {
+        return 'message must be a string';
+      }
+      if (payload.message !== undefined && payload.message.length > 500) {
+        return 'message must be max 500 chars';
+      }
+      if (
+        payload.delaySeconds !== undefined &&
+        (!isPositiveInteger(payload.delaySeconds, 300))
+      ) {
+        return 'delaySeconds must be an integer between 0 and 300';
+      }
+      return null;
+
     default:
       return 'Unsupported command type';
   }
@@ -94,12 +109,13 @@ router.post('/create', (req, res) => {
     return res.status(400).json({ error: 'Invalid or unsupported command type' });
   }
 
-  // "announce" broadcasts to all servers and does not target a specific player.
-  if (type !== 'announce' && !isRobloxId(robloxId)) {
+  // "announce"/"shutdown" broadcast to all servers and don't target a specific player.
+  const isBroadcastType = type === 'announce' || type === 'shutdown';
+  if (!isBroadcastType && !isRobloxId(robloxId)) {
     return res.status(400).json({ error: 'Invalid or missing robloxId' });
   }
-  if (type === 'announce' && robloxId !== 'all') {
-    return res.status(400).json({ error: 'announce commands must target robloxId "all"' });
+  if (isBroadcastType && robloxId !== 'all') {
+    return res.status(400).json({ error: `${type} commands must target robloxId "all"` });
   }
 
   if (createdBy !== undefined && !isDiscordId(createdBy)) {

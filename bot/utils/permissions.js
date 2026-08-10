@@ -20,6 +20,7 @@ const MANAGEMENT_COMMANDS = new Set([
   'unban',
   'kick',
   'announce',
+  'shutdown',
   'unverify',
 ]);
 
@@ -28,6 +29,7 @@ const MANAGEMENT_COMMANDS = new Set([
 const STAFF_COMMANDS = new Set([
   'userinfo',
   'online',
+  'checkverify',
 ]);
 
 // Commands anyone (verified guild member) may run.

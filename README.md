@@ -250,6 +250,8 @@ Zorg dat `API_URL` in het Roblox script en `API_BASE_URL` in `.env` de `https://
 [ ] /setrank werkt
 [ ] /online werkt (toont spelers/servers)
 [ ] /announce werkt (bericht verschijnt in-game)
+[ ] /shutdown werkt (aankondiging + kick na countdown)
+[ ] /checkverify werkt (toont lijst of bestand met geverifieerde accounts)
 [ ] /ban werkt (speler wordt gekickt + geweerd bij herjoin)
 [ ] Audit logs werken (embeds in AUDIT_LOG_CHANNEL_ID)
 ```

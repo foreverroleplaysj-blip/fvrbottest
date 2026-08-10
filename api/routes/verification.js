@@ -104,6 +104,27 @@ router.post('/complete', (req, res) => {
   res.json({ success: true, discordId: account.discord_id, robloxId: String(robloxId), robloxUsername });
 });
 
+// GET /verification/list
+// Returns every verified account. Used by /checkverify in Discord.
+router.get('/list', (req, res) => {
+  const accounts = db
+    .prepare(
+      `SELECT discord_id, roblox_id, roblox_username, updated_at
+       FROM accounts WHERE verified = 1 ORDER BY updated_at DESC`
+    )
+    .all();
+
+  res.json({
+    total: accounts.length,
+    accounts: accounts.map((a) => ({
+      discordId: a.discord_id,
+      robloxId: a.roblox_id,
+      robloxUsername: a.roblox_username,
+      verifiedAt: a.updated_at,
+    })),
+  });
+});
+
 // GET /verification/:discordId
 router.get('/:discordId', (req, res) => {
   const { discordId } = req.params;
