@@ -20,7 +20,15 @@ const config = {
   },
 
   api: {
-    baseUrl: process.env.API_BASE_URL || 'http://localhost:3000',
+    // When bot + API run in the same process (start.js, e.g. on Render),
+    // the API always binds to process.env.PORT (or API_PORT as fallback).
+    // Default to that same port automatically so the bot never has to
+    // guess/hardcode a port that doesn't match what the API actually bound to.
+    // Set API_BASE_URL explicitly only if the API runs as a SEPARATE service
+    // (e.g. bot and API deployed independently, or a custom domain).
+    baseUrl:
+      process.env.API_BASE_URL ||
+      `http://localhost:${process.env.PORT || process.env.API_PORT || 3000}`,
     key: required('API_KEY'),
     port: parseInt(process.env.API_PORT, 10) || 3000,
   },
