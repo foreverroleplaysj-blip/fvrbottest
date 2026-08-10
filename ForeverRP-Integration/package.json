@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node bot/index.js",
     "api": "node api/server.js",
+    "start:all": "node start.js",
     "deploy": "node bot/deploy-commands.js"
   },
   "license": "UNLICENSED",

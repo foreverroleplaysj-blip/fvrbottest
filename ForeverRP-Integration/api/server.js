@@ -15,7 +15,9 @@ const serversRoutes = require('./routes/servers');
 const playersRoutes = require('./routes/players');
 
 const API_KEY = process.env.API_KEY;
-const PORT = parseInt(process.env.API_PORT, 10) || 3000;
+// Render (and most PaaS providers) assign the port dynamically via PORT.
+// Falls back to API_PORT for local development.
+const PORT = parseInt(process.env.PORT, 10) || parseInt(process.env.API_PORT, 10) || 3000;
 
 if (!API_KEY) {
   console.error('[FATAL] API_KEY is niet ingesteld in .env — de server start niet zonder deze secret.');
