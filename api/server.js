@@ -13,6 +13,7 @@ const commandsRoutes = require('./routes/commands');
 const robloxRoutes = require('./routes/roblox');
 const serversRoutes = require('./routes/servers');
 const playersRoutes = require('./routes/players');
+const { initDb } = require('./database');
 
 const API_KEY = process.env.API_KEY;
 // Render (and most PaaS providers) assign the port dynamically via PORT.
@@ -76,6 +77,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`[API] Forever RP API luistert op poort ${PORT}`);
-});
+(async () => {
+  try {
+    await initDb();
+    console.log('[API] Database schema geïnitialiseerd.');
+  } catch (err) {
+    console.error('[FATAL] Kon database niet initialiseren:', err);
+    process.exit(1);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`[API] Forever RP API luistert op poort ${PORT}`);
+  });
+})();

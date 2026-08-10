@@ -5,7 +5,7 @@
 // whitelist in api/utils/validate.js and handle it in the Roblox script.
 
 const express = require('express');
-const db = require('../database');
+const { db } = require('../database');
 const {
   isDiscordId,
   isRobloxId,
@@ -14,6 +14,7 @@ const {
   isPositiveInteger,
 } = require('../utils/validate');
 const { isValidJob } = require('../../shared/jobs');
+const asyncHandler = require('../utils/asyncHandler');
 
 const router = express.Router();
 
@@ -22,10 +23,11 @@ const MAX_MONEY_AMOUNT = parseInt(process.env.MAX_MONEY_AMOUNT, 10) || 1000000;
 const MAX_RANK_LEVEL = parseInt(process.env.MAX_RANK_LEVEL, 10) || 20;
 const MAX_JOB_LEVEL = parseInt(process.env.MAX_JOB_LEVEL, 10) || 100;
 
-function logAudit(action, discordId, robloxId, details) {
-  db.prepare(
-    `INSERT INTO audit_logs (action, discord_id, roblox_id, details, created_at) VALUES (?, ?, ?, ?, ?)`
-  ).run(action, discordId || null, robloxId || null, details || null, Date.now());
+async function logAudit(action, discordId, robloxId, details) {
+  await db.execute({
+    sql: `INSERT INTO audit_logs (action, discord_id, roblox_id, details, created_at) VALUES (?, ?, ?, ?, ?)`,
+    args: [action, discordId || null, robloxId || null, details || null, Date.now()],
+  });
 }
 
 /**
@@ -102,93 +104,103 @@ function validatePayload(type, payload) {
 }
 
 // POST /commands/create  { type, robloxId, payload, createdBy }
-router.post('/create', (req, res) => {
-  const { type, robloxId, payload, createdBy } = req.body || {};
+router.post(
+  '/create',
+  asyncHandler(async (req, res) => {
+    const { type, robloxId, payload, createdBy } = req.body || {};
 
-  if (!isValidCommandType(type)) {
-    return res.status(400).json({ error: 'Invalid or unsupported command type' });
-  }
+    if (!isValidCommandType(type)) {
+      return res.status(400).json({ error: 'Invalid or unsupported command type' });
+    }
 
-  // "announce"/"shutdown" broadcast to all servers and don't target a specific player.
-  const isBroadcastType = type === 'announce' || type === 'shutdown';
-  if (!isBroadcastType && !isRobloxId(robloxId)) {
-    return res.status(400).json({ error: 'Invalid or missing robloxId' });
-  }
-  if (isBroadcastType && robloxId !== 'all') {
-    return res.status(400).json({ error: `${type} commands must target robloxId "all"` });
-  }
+    // "announce"/"shutdown" broadcast to all servers and don't target a specific player.
+    const isBroadcastType = type === 'announce' || type === 'shutdown';
+    if (!isBroadcastType && !isRobloxId(robloxId)) {
+      return res.status(400).json({ error: 'Invalid or missing robloxId' });
+    }
+    if (isBroadcastType && robloxId !== 'all') {
+      return res.status(400).json({ error: `${type} commands must target robloxId "all"` });
+    }
 
-  if (createdBy !== undefined && !isDiscordId(createdBy)) {
-    return res.status(400).json({ error: 'Invalid createdBy discordId' });
-  }
+    if (createdBy !== undefined && !isDiscordId(createdBy)) {
+      return res.status(400).json({ error: 'Invalid createdBy discordId' });
+    }
 
-  const safePayload = payload && typeof payload === 'object' ? payload : {};
-  const validationError = validatePayload(type, safePayload);
-  if (validationError) {
-    return res.status(400).json({ error: `Invalid payload: ${validationError}` });
-  }
+    const safePayload = payload && typeof payload === 'object' ? payload : {};
+    const validationError = validatePayload(type, safePayload);
+    if (validationError) {
+      return res.status(400).json({ error: `Invalid payload: ${validationError}` });
+    }
 
-  const now = Date.now();
-  const expiresAt = now + COMMAND_TTL_MS;
+    const now = Date.now();
+    const expiresAt = now + COMMAND_TTL_MS;
 
-  const result = db
-    .prepare(
-      `INSERT INTO commands (type, roblox_id, payload, status, created_by, created_at, expires_at)
-       VALUES (?, ?, ?, 'pending', ?, ?, ?)`
-    )
-    .run(type, String(robloxId), JSON.stringify(safePayload), createdBy || null, now, expiresAt);
+    const result = await db.execute({
+      sql: `INSERT INTO commands (type, roblox_id, payload, status, created_by, created_at, expires_at)
+            VALUES (?, ?, ?, 'pending', ?, ?, ?)`,
+      args: [type, String(robloxId), JSON.stringify(safePayload), createdBy || null, now, expiresAt],
+    });
 
-  logAudit(type.toUpperCase(), createdBy, robloxId, JSON.stringify(safePayload));
+    await logAudit(type.toUpperCase(), createdBy, robloxId, JSON.stringify(safePayload));
 
-  res.status(201).json({ id: result.lastInsertRowid, status: 'pending', expiresAt });
-});
+    res.status(201).json({ id: Number(result.lastInsertRowid), status: 'pending', expiresAt });
+  })
+);
 
 // GET /commands/:id
-router.get('/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json({ error: 'Invalid command id' });
-  }
+router.get(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid command id' });
+    }
 
-  const command = db.prepare('SELECT * FROM commands WHERE id = ?').get(id);
-  if (!command) {
-    return res.status(404).json({ error: 'Command not found' });
-  }
+    const result = await db.execute({ sql: 'SELECT * FROM commands WHERE id = ?', args: [id] });
+    const command = result.rows[0];
+    if (!command) {
+      return res.status(404).json({ error: 'Command not found' });
+    }
 
-  res.json({
-    id: command.id,
-    type: command.type,
-    robloxId: command.roblox_id,
-    payload: JSON.parse(command.payload),
-    status: command.status,
-    createdAt: command.created_at,
-    executedAt: command.executed_at,
-    result: command.result,
-  });
-});
+    res.json({
+      id: command.id,
+      type: command.type,
+      robloxId: command.roblox_id,
+      payload: JSON.parse(command.payload),
+      status: command.status,
+      createdAt: command.created_at,
+      executedAt: command.executed_at,
+      result: command.result,
+    });
+  })
+);
 
 // POST /commands/cancel  { id, actorDiscordId }
-router.post('/cancel', (req, res) => {
-  const { id, actorDiscordId } = req.body || {};
-  const commandId = parseInt(id, 10);
+router.post(
+  '/cancel',
+  asyncHandler(async (req, res) => {
+    const { id, actorDiscordId } = req.body || {};
+    const commandId = parseInt(id, 10);
 
-  if (!Number.isInteger(commandId) || commandId <= 0) {
-    return res.status(400).json({ error: 'Invalid command id' });
-  }
+    if (!Number.isInteger(commandId) || commandId <= 0) {
+      return res.status(400).json({ error: 'Invalid command id' });
+    }
 
-  const command = db.prepare('SELECT * FROM commands WHERE id = ?').get(commandId);
-  if (!command) {
-    return res.status(404).json({ error: 'Command not found' });
-  }
-  if (command.status !== 'pending') {
-    return res.status(409).json({ error: `Cannot cancel command with status "${command.status}"` });
-  }
+    const result = await db.execute({ sql: 'SELECT * FROM commands WHERE id = ?', args: [commandId] });
+    const command = result.rows[0];
+    if (!command) {
+      return res.status(404).json({ error: 'Command not found' });
+    }
+    if (command.status !== 'pending') {
+      return res.status(409).json({ error: `Cannot cancel command with status "${command.status}"` });
+    }
 
-  db.prepare(`UPDATE commands SET status = 'expired' WHERE id = ?`).run(commandId);
+    await db.execute({ sql: `UPDATE commands SET status = 'expired' WHERE id = ?`, args: [commandId] });
 
-  logAudit('CANCEL_COMMAND', actorDiscordId, command.roblox_id, `Command #${commandId} (${command.type}) cancelled`);
+    await logAudit('CANCEL_COMMAND', actorDiscordId, command.roblox_id, `Command #${commandId} (${command.type}) cancelled`);
 
-  res.json({ success: true });
-});
+    res.json({ success: true });
+  })
+);
 
 module.exports = router;

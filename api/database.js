@@ -1,24 +1,35 @@
 // api/database.js
-// SQLite database setup using better-sqlite3.
-// Synchronous API — simple, fast, and safe for this workload.
+//
+// Uses @libsql/client, which speaks the same SQL dialect as SQLite but can
+// connect to either:
+//   1. Turso (a free, hosted SQLite-compatible database) — set
+//      TURSO_DATABASE_URL + TURSO_AUTH_TOKEN. Data survives redeploys on
+//      hosts like Render without needing a paid Persistent Disk, because
+//      the database lives on Turso's servers, not on Render's filesystem.
+//   2. A local file — used automatically when TURSO_DATABASE_URL is not
+//      set, for local development. Same code, same queries, either way.
 
+const { createClient } = require('@libsql/client');
 const path = require('path');
 const fs = require('fs');
-const Database = require('better-sqlite3');
 require('dotenv').config();
 
-const dbPath = process.env.DATABASE_PATH || './data/foreverrp.sqlite';
-const dbDir = path.dirname(dbPath);
+const url = process.env.TURSO_DATABASE_URL || `file:${process.env.DATABASE_PATH || './data/foreverrp.sqlite'}`;
+const authToken = process.env.TURSO_AUTH_TOKEN; // not used/needed in local file mode
 
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+// In local file mode, make sure the containing directory exists —
+// libSQL (unlike better-sqlite3) does not create it automatically.
+if (url.startsWith('file:')) {
+  const filePath = url.slice('file:'.length);
+  const dir = path.dirname(filePath);
+  if (dir && dir !== '.' && !fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 }
 
-const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const db = createClient(authToken ? { url, authToken } : { url });
 
-db.exec(`
+const SCHEMA = `
 CREATE TABLE IF NOT EXISTS accounts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   discord_id TEXT UNIQUE NOT NULL,
@@ -72,6 +83,10 @@ CREATE TABLE IF NOT EXISTS servers (
 CREATE INDEX IF NOT EXISTS idx_accounts_roblox_id ON accounts(roblox_id);
 CREATE INDEX IF NOT EXISTS idx_commands_roblox_id_status ON commands(roblox_id, status);
 CREATE INDEX IF NOT EXISTS idx_bans_roblox_id_active ON bans(roblox_id, active);
-`);
+`;
 
-module.exports = db;
+async function initDb() {
+  await db.executeMultiple(SCHEMA);
+}
+
+module.exports = { db, initDb };

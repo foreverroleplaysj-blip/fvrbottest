@@ -3,7 +3,7 @@
 Complete integratie tussen je Discord server en Forever Roleplay (Roblox), geïnspireerd op hoe Parcel werkt.
 
 ```
-Discord → Discord Bot → Forever RP API (Node.js/Express + SQLite) → Roblox (HTTP polling)
+Discord → Discord Bot → Forever RP API (Node.js/Express + Turso/SQLite) → Roblox (HTTP polling)
 ```
 
 ---
@@ -13,9 +13,9 @@ Discord → Discord Bot → Forever RP API (Node.js/Express + SQLite) → Roblox
 ```
 ForeverRP-Integration/
 ├── bot/            Discord bot (discord.js v14)
-├── api/            Node.js/Express API + SQLite database
+├── api/            Node.js/Express API + Turso (of lokaal SQLite-bestand)
 ├── roblox/         ForeverIntegration.server.lua
-├── data/           SQLite database bestand (aangemaakt bij eerste start)
+├── data/           Lokaal database bestand (alleen als je GEEN Turso gebruikt)
 ├── .env.example
 └── package.json
 ```
@@ -70,6 +70,8 @@ API_BASE_URL=http://localhost:3000
 API_KEY=een-lange-willekeurige-geheime-string
 API_PORT=3000
 
+TURSO_DATABASE_URL=
+TURSO_AUTH_TOKEN=
 DATABASE_PATH=./data/foreverrp.sqlite
 
 STAFF_ROLE_ID=discord-role-id-van-staff
@@ -82,6 +84,18 @@ Genereer een sterke `API_KEY`, bijvoorbeeld in PowerShell:
 ```powershell
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
+
+### Database: Turso instellen (aanbevolen, gratis, overleeft redeploys)
+
+Deze integratie gebruikt [Turso](https://turso.tech) — een gratis, gehoste SQLite-compatibele database. Zonder Turso (dus met alleen `DATABASE_PATH`) werkt alles ook, maar dan verlies je op hosts als Render al je data bij elke redeploy, tenzij je daar apart voor betaalt (Persistent Disk).
+
+1. Ga naar https://turso.tech en maak een gratis account
+2. Maak een nieuwe database aan (via hun dashboard of de `turso` CLI)
+3. Kopieer de **Database URL** (begint met `libsql://...`) → dit is `TURSO_DATABASE_URL`
+4. Genereer een **Auth Token** in het dashboard → dit is `TURSO_AUTH_TOKEN`
+5. Vul beide in bij je environment variables (lokaal in `.env`, op Render bij **Environment**)
+
+Zodra `TURSO_DATABASE_URL` is ingevuld, gebruikt de API automatisch Turso in plaats van een lokaal bestand — geen verdere codewijziging nodig. Laat je deze leeg, dan valt de app terug op het lokale `DATABASE_PATH`-bestand (prima voor lokaal testen, niet aan te raden voor productie op Render's gratis tier).
 
 ## 5. Discord Developer Portal instellen
 
@@ -214,6 +228,8 @@ pm2 start api/server.js --name foreverrp-api
 pm2 start bot/index.js --name foreverrp-bot
 pm2 save
 ```
+
+**Host je liever op [Render](https://render.com)?** Gebruik dan `start.js` als Start Command (`node start.js`) — dat draait bot + API in 1 proces, wat nodig is omdat Render's gratis/goedkope Web Service maar 1 draaiend proces per service toestaat. Zorg dat `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` zijn ingevuld (zie stap 4) zodat je data niet verloren gaat bij redeploys — Render's eigen schijf is namelijk niet persistent tenzij je apart voor een Persistent Disk betaalt.
 
 ## 20. HTTPS
 
