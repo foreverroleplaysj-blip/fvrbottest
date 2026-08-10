@@ -30,24 +30,6 @@ local Config = {
 	PollInterval = 3,      -- seconds between command polls
 	HeartbeatInterval = 5, -- seconds between server status heartbeats
 
-	-- Whitelisted jobs. Keep this in sync with bot/config.js -> allowedJobs
-	AllowedJobs = {
-		"Politie",
-		"KMAR",
-		"Ambulance",
-		"Wegenwacht",
-		"DSI",
-		"PostNL",
-		"Vliegschool",
-		"Burger",
-	},
-
-	-- Whitelisted gangs. Keep this in sync with bot/config.js -> allowedGangs
-	Gangs = {
-		["GC"] = { name = "Gaviao Commando", maxLevel = 10 },
-		["RZ"] = { name = "Reznikov", maxLevel = 10 },
-	},
-
 	-- ============================================================
 	-- OBJECT PATH CONFIG
 	-- These names depend on how your Forever RP economy/data is
@@ -61,17 +43,49 @@ local Config = {
 	EconomyContantValueName = "Contant",
 	EconomyBankValueName = "Bank",
 
-	-- Where the player's Job is stored — a StringValue under the Player.
-	-- Adjust the path if your job is stored elsewhere (e.g. inside a
-	-- "Data" folder or leaderstats).
-	JobValueName = "Job",
-
 	-- Where rank is stored — an IntValue/NumberValue under the Player.
 	RankValueName = "Rank",
 
-	-- Where gang + gang level are stored — under the Player.
-	GangValueName = "Gang",
-	GangLevelValueName = "GangLevel",
+	-- ============================================================
+	-- JOBS
+	-- Matches your existing setjobconfig system: a "Jobs" Folder under
+	-- the Player containing one IntValue per job (created elsewhere in
+	-- your game on PlayerAdded from ServerScriptService.setjobconfig).
+	-- Setting a job resets every other job IntValue to 0 first, then
+	-- sets the target job's IntValue to the given level — matching your
+	-- existing in-game admin command behaviour exactly.
+	-- ============================================================
+	JobsFolderName = "Jobs",
+
+	-- Whitelist of valid job keys. Keep this EXACTLY in sync with:
+	--   1. ServerScriptService.setjobconfig (the real source of truth in-game)
+	--   2. shared/jobs.js (used by the bot + API for validation)
+	AllowedJobs = {
+		-- Overheid — uitdienst
+		"offpolice", "offkmar", "offambulance", "offmechanic", "offadvocaat", "offbrandweer",
+		-- Overheid — indienst
+		"kmar", "police", "dsi", "recherche", "mechanic", "ambulance", "dji", "kct",
+		"brandweer", "taxi", "security",
+		"hrb", "bot",
+		-- Werkloos
+		"unemployed",
+		-- Non-whitelisted jobs
+		"postnl", "technician", "Vakkenvuller", "duiker", "poolcleaner", "vuilnisman", "thuisbezorgd",
+		-- Whitelisted burger jobs
+		"luxury", "advocaat", "vliegschool",
+		-- Gang jobs
+		"gang_bratva", "gang_gaviao", "gang_brigazi", "gang_grmc", "gang_gsf", "gang_kaibiles",
+		"gang_kozlov", "gang_lostmc", "gang_medellin", "gang_menendez", "gang_mercy", "gang_laicona",
+		"gang_yakuza", "gang_netas", "gang_reznikov", "gang_saints", "gang_scc", "gang_soulz",
+		"gang_traids", "gang_santos", "gang_ww", "gang_yt", "gang_zone6", "gang_bloods", "gang_blockp",
+		"gang_bandoleros", "gang_alba", "gang_akatsuki", "gang_14k", "gang_handz", "gang_montana",
+		"gang_cali", "gang_sinaloa", "gang_santosboss", "lafamboss", "gang_ms_13", "gang_kitty",
+		"gang_sc", "gang_laonda", "gang_crips", "gang_muertos", "gang_tijuana", "gang_satudarah",
+		"kerstpack", "mocro", "wapendealer", "Owner",
+		-- Onderwereld
+		"gang_narcos", "gang_lafamilia", "gang_young",
+		"union", "Hitman", "hellokitty", "Onderwereld",
+	},
 }
 
 ----------------------------------------------------------------
@@ -245,21 +259,46 @@ local function isJobAllowed(job)
 	return false
 end
 
+-- Sets a player's job by resetting every IntValue inside their Jobs folder
+-- to 0, then setting the target job's IntValue to `level`. This matches
+-- your existing in-game admin command exactly (1 active job at a time,
+-- with a numeric level/rank within that job).
 CommandHandlers["set_job"] = function(player, payload)
 	if not isJobAllowed(payload.job) then
 		return false, "Job niet toegestaan: " .. tostring(payload.job)
 	end
 
-	local jobValue = player:FindFirstChild(Config.JobValueName)
-	if not jobValue then
-		warn(("[ForeverIntegration] '%s' object niet gevonden onder Player — pas Config.JobValueName aan."):format(
-			Config.JobValueName
-		))
-		return false, "Job object niet gevonden"
+	local level = tonumber(payload.level)
+	if not level or level < 1 then
+		return false, "Ongeldig niveau"
 	end
 
-	jobValue.Value = payload.job
-	return true, "Job ingesteld op " .. payload.job
+	local jobsFolder = player:FindFirstChild(Config.JobsFolderName)
+	if not jobsFolder then
+		warn(("[ForeverIntegration] '%s' folder niet gevonden onder Player — pas Config.JobsFolderName aan."):format(
+			Config.JobsFolderName
+		))
+		return false, "Jobs folder niet gevonden"
+	end
+
+	local targetValue = jobsFolder:FindFirstChild(payload.job)
+	if not targetValue then
+		warn(("[ForeverIntegration] Job '%s' niet gevonden in Jobs folder van %s."):format(
+			payload.job, player.Name
+		))
+		return false, "Job object niet gevonden in Jobs folder"
+	end
+
+	-- Reset every other job to 0 first (1 active job at a time).
+	for _, child in ipairs(jobsFolder:GetChildren()) do
+		if child:IsA("IntValue") then
+			child.Value = 0
+		end
+	end
+
+	targetValue.Value = level
+
+	return true, ("Job ingesteld op %s (niveau %d)"):format(payload.job, level)
 end
 
 CommandHandlers["set_rank"] = function(player, payload)
@@ -278,51 +317,6 @@ CommandHandlers["set_rank"] = function(player, payload)
 
 	rankValue.Value = rank
 	return true, "Rank ingesteld op " .. tostring(rank)
-end
-
-CommandHandlers["set_gang"] = function(player, payload)
-	local gangInfo = Config.Gangs[payload.gang]
-	if not gangInfo then
-		return false, "Gang niet toegestaan: " .. tostring(payload.gang)
-	end
-
-	local gangValue = player:FindFirstChild(Config.GangValueName)
-	if not gangValue then
-		warn(("[ForeverIntegration] '%s' object niet gevonden onder Player — pas Config.GangValueName aan."):format(
-			Config.GangValueName
-		))
-		return false, "Gang object niet gevonden"
-	end
-
-	gangValue.Value = payload.gang
-	return true, "Gang ingesteld op " .. payload.gang
-end
-
-CommandHandlers["set_gang_level"] = function(player, payload)
-	local level = tonumber(payload.level)
-	if not level or level < 0 then
-		return false, "Ongeldig niveau"
-	end
-
-	-- Clamp against the max level of the player's current gang, if known.
-	local gangValue = player:FindFirstChild(Config.GangValueName)
-	if gangValue and Config.Gangs[gangValue.Value] then
-		local maxLevel = Config.Gangs[gangValue.Value].maxLevel
-		if level > maxLevel then
-			return false, ("Niveau overschrijdt maximum (%d) voor deze gang"):format(maxLevel)
-		end
-	end
-
-	local gangLevelValue = player:FindFirstChild(Config.GangLevelValueName)
-	if not gangLevelValue then
-		warn(("[ForeverIntegration] '%s' object niet gevonden onder Player — pas Config.GangLevelValueName aan."):format(
-			Config.GangLevelValueName
-		))
-		return false, "GangLevel object niet gevonden"
-	end
-
-	gangLevelValue.Value = level
-	return true, "Gangniveau ingesteld op " .. tostring(level)
 end
 
 CommandHandlers["kick"] = function(player, payload)

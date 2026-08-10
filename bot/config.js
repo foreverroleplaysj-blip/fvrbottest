@@ -38,7 +38,7 @@ const config = {
   limits: {
     maxMoneyAmount: parseInt(process.env.MAX_MONEY_AMOUNT, 10) || 1000000,
     maxRankLevel: parseInt(process.env.MAX_RANK_LEVEL, 10) || 20,
-    maxGangLevel: parseInt(process.env.MAX_GANG_LEVEL, 10) || 10,
+    maxJobLevel: parseInt(process.env.MAX_JOB_LEVEL, 10) || 100,
   },
 
   // Colors used across embeds — matches Forever RP branding
@@ -50,23 +50,9 @@ const config = {
     info: 0x3b82f6,
   },
 
-  // Allowed jobs — keep in sync with roblox/ForeverIntegration.server.lua Config.AllowedJobs
-  allowedJobs: [
-    'Politie',
-    'KMAR',
-    'Ambulance',
-    'Wegenwacht',
-    'DSI',
-    'PostNL',
-    'Vliegschool',
-    'Burger',
-  ],
-
-  // Allowed gangs — keep in sync with roblox/ForeverIntegration.server.lua Config.Gangs
-  allowedGangs: {
-    GC: { name: 'Gaviao Commando', maxLevel: 10 },
-    RZ: { name: 'Reznikov', maxLevel: 10 },
-  },
+  // Full job list (incl. gangs) — canonical source is shared/jobs.js,
+  // which itself should mirror your Roblox setjobconfig ModuleScript.
+  allowedJobs: require('../shared/jobs').JOBS,
 };
 
 module.exports = config;
