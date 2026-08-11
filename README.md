@@ -215,18 +215,6 @@ Typ tijdens het invullen van `job:` een stukje van de naam (bv. "poli" of "gang_
 
 De speler wordt gekickt met de opgegeven reden. Bij een nieuwe join-poging wordt de speler direct geweerd (via `IsBanned` check).
 
-## 18b. `/revive`, `/jumpscare` en `/checkaccount`
-
-**`/revive discord:@Speler`** — reload het karakter van de speler en teleporteert ze terug naar hun laatste positie. Optioneel: vul `ReviveWebhookURL` in `roblox/ForeverIntegration.server.lua` in als je elk revive-gebruik ook in een Discord-kanaal wilt loggen via een webhook (naast de normale audit-log).
-
-**`/jumpscare discord:@Speler`** — toont een fullscreen afbeelding + geluid op het scherm van de opgegeven speler (alleen bij hen zichtbaar, niet bij andere spelers). Vereist:
-1. Plaats `roblox/ForeverJumpscare.client.lua` als een **LocalScript** in `StarterPlayer > StarterPlayerScripts`
-2. Upload je eigen scary-afbeelding en geluid naar Roblox, en vul de asset-ID's in bij `Config.JumpscareImageAssetId` / `Config.JumpscareSoundAssetId` in `ForeverIntegration.server.lua`
-
-**`/checkaccount roblox_id:...`** — checkt of een Roblox-account **platform-breed geband (terminated) is door Roblox zelf**, plus de ban-geschiedenis binnen jullie eigen server. Roblox biedt géén publieke data over bans in *andere* games — dat is alleen zichtbaar voor de eigenaren van die specifieke game. Dit command kan dus nooit "is deze speler ooit ergens gebanned" beantwoorden, alleen "is deze speler platform-breed getermineerd" + "is deze speler bij ons gebanned".
-
-> **Roblox Studio testen:** `game.JobId` is leeg tijdens Play Solo/Test, waardoor heartbeats en polling voorheen faalden (o.a. de reden dat `/shutdown` "geen servers online" toonde). Het script gebruikt nu automatisch een tijdelijk `SessionJobId` als fallback zodat testen in Studio ook werkt.
-
 ## 19. Productiehosting
 
 Voor productie:

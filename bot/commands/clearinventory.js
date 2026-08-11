@@ -1,4 +1,4 @@
-// bot/commands/jumpscare.js
+// bot/commands/clearinventory.js
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const api = require('../utils/api');
 const embeds = require('../utils/embeds');
@@ -6,8 +6,8 @@ const logger = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('jumpscare')
-    .setDescription('[Management] Laat een jumpscare zien op het scherm van een speler')
+    .setName('clearinventory')
+    .setDescription('[Management] Maak de Ox inventory van een speler leeg')
     .addUserOption((opt) =>
       opt.setName('discord').setDescription('De Discord gebruiker').setRequired(true)
     ),
@@ -26,19 +26,19 @@ module.exports = {
         return;
       }
 
-      const command = await api.createCommand('jumpscare', verification.robloxId, {}, interaction.user.id);
+      const command = await api.createCommand('clear_inventory', verification.robloxId, {}, interaction.user.id);
 
       await interaction.editReply({
         embeds: [
           embeds.success(
-            'Jumpscare verstuurd',
-            `<@${target.id}> (${verification.robloxUsername}) krijgt een jumpscare te zien.\nCommand ID: \`${command.id}\``
+            'Inventory geleegd',
+            `De inventory van <@${target.id}> (${verification.robloxUsername}) wordt geleegd.\nCommand ID: \`${command.id}\``
           ),
         ],
       });
 
       await logger.auditLog(client, {
-        action: 'JUMPSCARE',
+        action: 'CLEAR_INVENTORY',
         discordId: target.id,
         robloxId: verification.robloxId,
         details: `Door <@${interaction.user.id}>`,

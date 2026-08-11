@@ -22,8 +22,12 @@ const MANAGEMENT_COMMANDS = new Set([
   'announce',
   'shutdown',
   'unverify',
-  'revive',
   'jumpscare',
+  'revive',
+  'giveitem',
+  'clearinventory',
+  'givecoins',
+  'givepack',
 ]);
 
 // Commands staff are explicitly allowed to run.
@@ -33,6 +37,7 @@ const STAFF_COMMANDS = new Set([
   'online',
   'checkverify',
   'checkaccount',
+  'checkgeld',
 ]);
 
 // Commands anyone (verified guild member) may run.
@@ -40,6 +45,9 @@ const PUBLIC_COMMANDS = new Set([
   'verify',
   'userinfo',
   'online',
+  '8ball',
+  'coinflip',
+  'roll',
 ]);
 
 function isAdministrator(interaction) {

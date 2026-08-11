@@ -16,8 +16,13 @@ const ALLOWED_COMMAND_TYPES = new Set([
   'kick',
   'announce',
   'shutdown',
-  'revive',
   'jumpscare',
+  'revive',
+  'give_item',
+  'clear_inventory',
+  'give_coins',
+  'give_pack',
+  'check_money',
 ]);
 
 const ALLOWED_ACCOUNTS = new Set(['Contant', 'Bank']);

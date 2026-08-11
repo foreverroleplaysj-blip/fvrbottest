@@ -2,69 +2,94 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const api = require('../utils/api');
 const embeds = require('../utils/embeds');
-const config = require('../config');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('checkaccount')
-    .setDescription('[Staff] Check ban-status van een Roblox account (eigen server + Roblox platform)')
+    .setDescription('[Staff] Bekijk Forever RP ban-geschiedenis en publieke Roblox accountinfo')
+    .addUserOption((opt) =>
+      opt.setName('discord').setDescription('Discord gebruiker (indien geverifieerd)').setRequired(false)
+    )
     .addStringOption((opt) =>
-      opt.setName('roblox_id').setDescription('Het Roblox User ID om te checken').setRequired(true)
+      opt.setName('robloxid').setDescription('Of vul direct een Roblox UserId in').setRequired(false)
     ),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    const robloxId = interaction.options.getString('roblox_id', true).trim();
+    const target = interaction.options.getUser('discord');
+    const robloxIdInput = interaction.options.getString('robloxid');
 
-    if (!/^[0-9]{1,20}$/.test(robloxId)) {
+    if (!target && !robloxIdInput) {
       await interaction.editReply({
-        embeds: [embeds.error('Ongeldig ID', 'Geef een numeriek Roblox User ID op (gebruik `/userinfo` als je alleen de naam weet).')],
+        embeds: [embeds.error('Ontbrekende input', 'Geef óf een Discord gebruiker óf een Roblox UserId op.')],
       });
       return;
     }
 
     try {
-      const result = await api.getFullAccountCheck(robloxId);
+      let robloxId = robloxIdInput;
+      let robloxUsername = null;
 
-      const lines = [];
-
-      lines.push(`**Roblox account:** ${result.roblox ? `${result.roblox.name} (${robloxId})` : `Onbekend (${robloxId})`}`);
-
-      if (result.platformTerminated === true) {
-        lines.push('🚫 **Platform-status:** Dit account is door Roblox zelf getermineerd (platform-brede ban).');
-      } else if (result.platformTerminated === false) {
-        lines.push('✅ **Platform-status:** Niet platform-breed geband door Roblox.');
-      } else {
-        lines.push('❔ **Platform-status:** Kon niet worden opgehaald (Roblox API niet bereikbaar of account bestaat niet meer).');
-      }
-
-      lines.push('');
-      lines.push(
-        result.ownServer.currentlyBanned
-          ? `🚫 **Onze server:** Actief gebanned — reden: ${result.ownServer.activeBan.reason || 'geen reden opgegeven'}`
-          : '✅ **Onze server:** Niet actief gebanned.'
-      );
-
-      if (result.ownServer.history.length > 0) {
-        lines.push('');
-        lines.push('**Ban-geschiedenis (onze server):**');
-        for (const entry of result.ownServer.history.slice(0, 5)) {
-          const date = new Date(entry.createdAt).toLocaleDateString('nl-NL');
-          lines.push(`- ${date} — ${entry.reason || 'geen reden'} ${entry.active ? '(actief)' : '(opgeheven)'}`);
+      if (target) {
+        const verification = await api.getVerificationByDiscordId(target.id);
+        if (!verification?.verified) {
+          await interaction.editReply({
+            embeds: [embeds.error('Speler niet geverifieerd', `<@${target.id}> heeft geen gekoppeld Roblox account.`)],
+          });
+          return;
         }
+        robloxId = verification.robloxId;
+        robloxUsername = verification.robloxUsername;
       }
 
-      lines.push('');
-      lines.push('*Let op: Roblox biedt geen publieke data over bans in andere games — alleen platform-brede terminatie en onze eigen server-bans kunnen gecheckt worden.*');
+      if (!/^[0-9]{1,20}$/.test(robloxId)) {
+        await interaction.editReply({ embeds: [embeds.error('Ongeldig Roblox UserId', 'Moet een numeriek ID zijn.')] });
+        return;
+      }
 
-      const embed = (result.ownServer.currentlyBanned || result.platformTerminated
-        ? embeds.warning
-        : embeds.success)('Account Check', lines.join('\n'));
+      const history = await api.getAccountHistory(robloxId);
+
+      const embed = embeds.info(`Account check — ${robloxUsername || robloxId}`);
+      embed.addFields({ name: 'Roblox UserId', value: robloxId, inline: true });
+
+      if (history.robloxAccount) {
+        const acc = history.robloxAccount;
+        embed.addFields(
+          { name: 'Roblox username', value: acc.name || 'Onbekend', inline: true },
+          {
+            name: 'Account aangemaakt',
+            value: acc.created ? new Date(acc.created).toLocaleDateString('nl-NL') : 'Onbekend',
+            inline: true,
+          },
+          {
+            name: 'Globaal geband door Roblox',
+            value: acc.isBanned ? '⚠️ Ja (account terminated)' : 'Nee',
+            inline: true,
+          }
+        );
+      } else {
+        embed.addFields({ name: 'Roblox accountinfo', value: 'Kon niet worden opgehaald (Roblox API onbereikbaar of account bestaat niet).' });
+      }
+
+      if (history.bans.length === 0) {
+        embed.addFields({ name: 'Forever RP ban-geschiedenis', value: 'Geen bans gevonden.' });
+      } else {
+        const lines = history.bans
+          .slice(0, 10)
+          .map(
+            (b) =>
+              `${b.active ? '🔴 Actief' : '⚪ Inactief'} — ${new Date(b.createdAt).toLocaleDateString('nl-NL')} — ${b.reason || 'Geen reden'}`
+          );
+        embed.addFields({
+          name: `Forever RP ban-geschiedenis (${history.bans.length})`,
+          value: lines.join('\n'),
+        });
+      }
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
-      await interaction.editReply({ embeds: [embeds.error('Actie mislukt', err.message)] });
+      await interaction.editReply({ embeds: [embeds.error('Ophalen mislukt', err.message)] });
     }
   },
 };

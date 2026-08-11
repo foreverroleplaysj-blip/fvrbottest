@@ -7,9 +7,9 @@ const logger = require('../utils/logger');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('revive')
-    .setDescription('[Management] Revive een speler op hun laatst bekende positie')
+    .setDescription('[Management] Revive een speler op zijn huidige positie')
     .addUserOption((opt) =>
-      opt.setName('discord').setDescription('De Discord gebruiker om te reviven').setRequired(true)
+      opt.setName('discord').setDescription('De Discord gebruiker').setRequired(true)
     ),
 
   async execute(interaction, { client }) {
@@ -31,8 +31,8 @@ module.exports = {
       await interaction.editReply({
         embeds: [
           embeds.success(
-            'Revive verzonden',
-            `<@${target.id}> (${verification.robloxUsername}) wordt gerevived zodra de command wordt opgepikt.\nCommand ID: \`${command.id}\``
+            'Revive verstuurd',
+            `<@${target.id}> (${verification.robloxUsername}) wordt gerevived.\nCommand ID: \`${command.id}\``
           ),
         ],
       });
@@ -41,7 +41,7 @@ module.exports = {
         action: 'REVIVE',
         discordId: target.id,
         robloxId: verification.robloxId,
-        details: `Revive uitgevoerd door <@${interaction.user.id}>`,
+        details: `Door <@${interaction.user.id}>`,
       });
     } catch (err) {
       await interaction.editReply({ embeds: [embeds.error('Actie mislukt', err.message)] });

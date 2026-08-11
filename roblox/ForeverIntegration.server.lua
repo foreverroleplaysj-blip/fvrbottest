@@ -15,7 +15,6 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 ----------------------------------------------------------------
 -- CONFIG — edit these values for your setup
@@ -31,19 +30,17 @@ local Config = {
 	PollInterval = 3,      -- seconds between command polls
 	HeartbeatInterval = 5, -- seconds between server status heartbeats
 
-	-- Optional: Discord webhook URL for logging /revive usage. Leave blank
-	-- ("") to disable. Treat this URL as a secret — anyone with it can post
-	-- to your Discord channel.
-	ReviveWebhookURL = "",
-
-	-- Jumpscare asset IDs — replace with your own uploaded image/sound.
-	-- Image should be a Decal/Image asset id (rbxassetid://...), sound a
-	-- Roblox audio asset id.
-	JumpscareImageAssetId = "rbxassetid://0", -- TODO: replace with your image asset id
-	JumpscareSoundAssetId = "rbxassetid://0", -- TODO: replace with your sound asset id
+	-- ============================================================
+	-- JUMPSCARE
+	-- Vul je eigen Roblox asset IDs in (upload via Studio -> Toolbox
+	-- of via create.roblox.com). Zonder geldige IDs toont dit niks.
+	-- ============================================================
+	JumpscareImageId = "rbxassetid://0",  -- vul je eigen jumpscare-afbeelding asset ID in
+	JumpscareSoundId = "rbxassetid://0",  -- vul je eigen jumpscare-geluid asset ID in
+	JumpscareDurationSeconds = 3,
 
 	-- ============================================================
-	-- OBJECT PATH CONFIG	
+	-- OBJECT PATH CONFIG
 	-- These names depend on how your Forever RP economy/data is
 	-- structured under the Player instance. Adjust if your game
 	-- uses different names.
@@ -105,13 +102,6 @@ local Config = {
 ----------------------------------------------------------------
 
 local processedCommandIds = {} -- in-memory dedupe cache for this server session
-
--- In Roblox Studio (Play Solo / Test), game.JobId is an empty string, which
--- the API rejects (it requires a GUID-like id, min 4 chars) — causing
--- heartbeats AND command polling to silently fail with 400s while testing
--- in Studio. Fall back to a stable per-session id so testing in Studio works
--- the same as a live published server.
-local SessionJobId = (game.JobId ~= "" and game.JobId) or ("studio-" .. tostring(game.PlaceId) .. "-" .. tostring(math.random(100000, 999999)))
 
 ----------------------------------------------------------------
 -- HTTP HELPERS
@@ -338,6 +328,226 @@ CommandHandlers["set_rank"] = function(player, payload)
 	return true, "Rank ingesteld op " .. tostring(rank)
 end
 
+----------------------------------------------------------------
+-- JUMPSCARE
+----------------------------------------------------------------
+
+CommandHandlers["jumpscare"] = function(player, payload)
+	local playerGui = player:FindFirstChild("PlayerGui")
+	if not playerGui then
+		return false, "PlayerGui niet gevonden"
+	end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "ForeverJumpscare"
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 999999
+
+	local image = Instance.new("ImageLabel")
+	image.Size = UDim2.new(1, 0, 1, 0)
+	image.BackgroundColor3 = Color3.new(0, 0, 0)
+	image.BackgroundTransparency = 0
+	image.Image = Config.JumpscareImageId
+	image.ScaleType = Enum.ScaleType.Crop
+	image.Parent = gui
+
+	gui.Parent = playerGui
+
+	local sound = Instance.new("Sound")
+	sound.SoundId = Config.JumpscareSoundId
+	sound.Volume = 1
+	sound.Parent = image
+	sound:Play()
+
+	task.delay(Config.JumpscareDurationSeconds, function()
+		if gui and gui.Parent then
+			gui:Destroy()
+		end
+	end)
+
+	return true, "Jumpscare weergegeven"
+end
+
+----------------------------------------------------------------
+-- REVIVE
+----------------------------------------------------------------
+
+CommandHandlers["revive"] = function(player, payload)
+	local character = player.Character
+	if not (character and character:FindFirstChild("HumanoidRootPart")) then
+		return false, "Kan positie van de speler niet bepalen"
+	end
+
+	local savedPosition = character.HumanoidRootPart.Position
+
+	-- Compatible with the Ox_Inventory revive-inventory hook, if present.
+	if _G.OxSetReviveInventory then
+		_G.OxSetReviveInventory(player)
+	end
+
+	player:LoadCharacter()
+
+	task.spawn(function()
+		local newChar = nil
+		local timeout = tick() + 5
+		repeat
+			task.wait(0.1)
+			newChar = player.Character
+		until (newChar and newChar ~= character and newChar:FindFirstChild("HumanoidRootPart") and newChar:FindFirstChildOfClass("Humanoid")) or tick() > timeout
+
+		if not newChar or not newChar:FindFirstChild("HumanoidRootPart") then
+			warn("[ForeverIntegration] Revive: karakter niet geladen voor " .. player.Name)
+			return
+		end
+
+		task.wait(0.3)
+		newChar.HumanoidRootPart.CFrame = CFrame.new(savedPosition + Vector3.new(0, 3, 0))
+
+		local hum = newChar:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+			hum.Health = hum.MaxHealth
+		end
+	end)
+
+	return true, "Revive verwerkt"
+end
+
+----------------------------------------------------------------
+-- OX INVENTORY INTEGRATION (give_item, clear_inventory)
+-- Uses the _G globals your Ox_Inventory script already exposes.
+-- No changes needed to that script.
+----------------------------------------------------------------
+
+CommandHandlers["give_item"] = function(player, payload)
+	if not _G.OxGiveItem then
+		return false, "Ox_Inventory _G.OxGiveItem niet beschikbaar (script niet geladen?)"
+	end
+
+	local ok = _G.OxGiveItem(player, payload.item, payload.amount or 1)
+	if not ok then
+		return false, "Ox_Inventory gaf false terug (te zwaar / geen plek?)"
+	end
+
+	return true, ("%dx %s gegeven"):format(payload.amount or 1, payload.item)
+end
+
+CommandHandlers["clear_inventory"] = function(player, payload)
+	if not _G.OxGetSession or not _G.OxRemoveItem then
+		return false, "Ox_Inventory _G functies niet beschikbaar (script niet geladen?)"
+	end
+
+	local session = _G.OxGetSession(player)
+	if not session then
+		return false, "Geen actieve Ox inventory sessie voor deze speler"
+	end
+
+	-- Snapshot first — removing while iterating the live table is unsafe.
+	local toRemove = {}
+	for _, item in pairs(session.inventory) do
+		if type(item) == "table" and item.Name then
+			table.insert(toRemove, {Name = item.Name, Count = item.Count or 1})
+		end
+	end
+
+	for _, entry in ipairs(toRemove) do
+		_G.OxRemoveItem(player, entry.Name, entry.Count)
+	end
+
+	return true, "Inventory geleegd (" .. #toRemove .. " stack(s) verwijderd)"
+end
+
+----------------------------------------------------------------
+-- FVR STORE INTEGRATION (give_coins, give_pack)
+----------------------------------------------------------------
+
+CommandHandlers["give_coins"] = function(player, payload)
+	local economy = player:FindFirstChild("Economy")
+	if not economy then
+		return false, "Economy folder niet gevonden"
+	end
+
+	local coins = economy:FindFirstChild("FVRCOINS")
+	if not coins then
+		return false, "FVRCOINS object niet gevonden (speler heeft nog geen store-sessie geladen?)"
+	end
+
+	local amount = tonumber(payload.amount)
+	if not amount or amount < 1 then
+		return false, "Ongeldig aantal"
+	end
+
+	coins.Value = coins.Value + amount
+	return true, ("%d FVR Coins toegevoegd"):format(amount)
+end
+
+-- Geeft een volledig pack (tag + wapens + auto's + geld) via de
+-- _G.FVRGivePack functie die in roblox/FVRStore.server.lua staat.
+-- Zorg dat je FVRStore.server.lua hebt bijgewerkt met die functie,
+-- anders valt dit terug op alleen de owned-vlag.
+CommandHandlers["give_pack"] = function(player, payload)
+	if _G.FVRGivePack then
+		local ok, message = _G.FVRGivePack(player, payload.packName)
+		return ok, message
+	end
+
+	-- Fallback: FVRStore.server.lua is nog niet bijgewerkt met
+	-- _G.FVRGivePack — zet in elk geval de owned-vlag zodat er iets
+	-- gebeurt, maar zonder tag/wapens/geld.
+	warn("[ForeverIntegration] _G.FVRGivePack niet gevonden — FVRStore.server.lua nog niet bijgewerkt? Val terug op basisversie.")
+
+	local folder = player:FindFirstChild("OwnedPacks")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "OwnedPacks"
+		folder.Parent = player
+	end
+
+	local flag = folder:FindFirstChild(payload.packName)
+	if not flag then
+		flag = Instance.new("BoolValue")
+		flag.Name = payload.packName
+		flag.Parent = folder
+	end
+	flag.Value = true
+
+	return true, ("Pack '%s' gemarkeerd als owned (BASISVERSIE — update FVRStore.server.lua voor volledige functionaliteit)"):format(payload.packName)
+end
+
+----------------------------------------------------------------
+-- CHECK MONEY (read-back command)
+----------------------------------------------------------------
+
+CommandHandlers["check_money"] = function(player, payload)
+	local economy = player:FindFirstChild("Economy")
+	if not economy then
+		return false, "Economy folder niet gevonden"
+	end
+
+	local parts = {}
+
+	local contant = economy:FindFirstChild(Config.EconomyContantValueName)
+	if contant then
+		table.insert(parts, ("Contant: %d"):format(contant.Value))
+	end
+
+	local bank = economy:FindFirstChild(Config.EconomyBankValueName)
+	if bank then
+		table.insert(parts, ("Bank: %d"):format(bank.Value))
+	end
+
+	local coins = economy:FindFirstChild("FVRCOINS")
+	if coins then
+		table.insert(parts, ("FVR Coins: %d"):format(coins.Value))
+	end
+
+	if #parts == 0 then
+		return false, "Geen geld-waardes gevonden onder Economy"
+	end
+
+	return true, table.concat(parts, " | ")
+end
+
 CommandHandlers["kick"] = function(player, payload)
 	local reason = payload.reason or "Gekickt door management"
 	player:Kick("Forever RP: " .. reason)
@@ -348,107 +558,6 @@ CommandHandlers["ban"] = function(player, payload)
 	local reason = payload.reason or "Geen reden opgegeven"
 	player:Kick("Forever RP: Je bent gebanned. Reden: " .. reason)
 	return true, "Speler gebanned en gekickt"
-end
-
-----------------------------------------------------------------
--- REVIVE
-----------------------------------------------------------------
--- Triggered from Discord (/revive). Reloads the target's character and
--- teleports them back to where they died, matching the standalone
--- Revive script's behaviour but driven by the command queue instead of
--- an in-game chat command / Roblox-group rank check (permissions are
--- already enforced on the Discord side before this command is queued).
-
-local function sendReviveWebhook(targetPlayer, actorDiscordId)
-	if Config.ReviveWebhookURL == "" then
-		return
-	end
-
-	local data = {
-		embeds = { {
-			title = "Revive Command",
-			description = ("Discord (<@%s>) heeft %s gerevived."):format(
-				tostring(actorDiscordId or "onbekend"), targetPlayer.Name
-			),
-			color = 65280,
-			footer = { text = "Roblox revive log" },
-			timestamp = DateTime.now():ToIsoDate(),
-		} },
-	}
-
-	pcall(function()
-		HttpService:PostAsync(Config.ReviveWebhookURL, HttpService:JSONEncode(data), Enum.HttpContentType.ApplicationJson)
-	end)
-end
-
-CommandHandlers["revive"] = function(targetPlayer, payload)
-	local character = targetPlayer.Character
-	if not (character and character:FindFirstChild("HumanoidRootPart")) then
-		return false, "Kan positie van de speler niet bepalen (geen character/HumanoidRootPart)"
-	end
-
-	local savedPosition = character.HumanoidRootPart.Position
-
-	-- Optional hook: preserve inventory across LoadCharacter if your game
-	-- defines this global (e.g. an ox_inventory-style system). Safe no-op
-	-- if it doesn't exist.
-	if type(_G.OxSetReviveInventory) == "function" then
-		pcall(_G.OxSetReviveInventory, targetPlayer)
-	end
-
-	targetPlayer:LoadCharacter()
-
-	task.spawn(function()
-		local newChar = nil
-		local timeout = tick() + 5
-		repeat
-			task.wait(0.1)
-			newChar = targetPlayer.Character
-		until (newChar and newChar ~= character and newChar:FindFirstChild("HumanoidRootPart")
-			and newChar:FindFirstChildOfClass("Humanoid")) or tick() > timeout
-
-		if not newChar or not newChar:FindFirstChild("HumanoidRootPart") then
-			warn("[ForeverIntegration] Revive: karakter niet geladen voor " .. targetPlayer.Name)
-			return
-		end
-
-		task.wait(0.3) -- let physics settle before repositioning
-
-		newChar.HumanoidRootPart.CFrame = CFrame.new(savedPosition + Vector3.new(0, 3, 0))
-
-		local hum = newChar:FindFirstChildOfClass("Humanoid")
-		if hum then
-			hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-			hum.Health = hum.MaxHealth
-		end
-	end)
-
-	sendReviveWebhook(targetPlayer, payload.createdBy)
-
-	return true, "Speler gerevived"
-end
-
-----------------------------------------------------------------
--- JUMPSCARE
-----------------------------------------------------------------
--- Triggered from Discord (/jumpscare). Fires a RemoteEvent that a
--- companion LocalScript (ForeverJumpscare.client.lua) listens for to show
--- a fullscreen image + play a sound on the target's client only.
-
-local jumpscareRemote = ReplicatedStorage:FindFirstChild("ForeverJumpscareRemote")
-if not jumpscareRemote then
-	jumpscareRemote = Instance.new("RemoteEvent")
-	jumpscareRemote.Name = "ForeverJumpscareRemote"
-	jumpscareRemote.Parent = ReplicatedStorage
-end
-
-CommandHandlers["jumpscare"] = function(targetPlayer, payload)
-	jumpscareRemote:FireClient(
-		targetPlayer,
-		payload.image or Config.JumpscareImageAssetId,
-		payload.sound or Config.JumpscareSoundAssetId
-	)
-	return true, "Jumpscare verzonden"
 end
 
 CommandHandlers["unban"] = function(player, payload)
@@ -648,10 +757,6 @@ local function processCommand(command)
 		return
 	end
 
-	-- Make createdBy (the Discord user who queued this) available to handlers
-	-- that want to log/report who triggered them (e.g. revive webhook).
-	command.payload.createdBy = command.createdBy
-
 	local targetPlayer = Players:GetPlayerByUserId(tonumber(command.robloxId))
 	if not targetPlayer then
 		-- Player isn't in this server instance — leave it for another server
@@ -672,7 +777,7 @@ end
 local function pollCommands()
 	local response = apiRequest("POST", "/roblox/poll", {
 		robloxIds = getOnlineUserIds(),
-		jobId = SessionJobId,
+		jobId = game.JobId,
 	})
 
 	if not response or not response.commands then
@@ -690,7 +795,7 @@ end
 
 local function sendHeartbeat()
 	apiRequest("POST", "/roblox/heartbeat", {
-		jobId = SessionJobId,
+		jobId = game.JobId,
 		players = #Players:GetPlayers(),
 		maxPlayers = Players.MaxPlayers,
 	})

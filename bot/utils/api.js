@@ -76,7 +76,24 @@ const api = {
   getOnlineServers: () => request('GET', '/servers/online'),
 
   // ---- Players ----
-  getFullAccountCheck: (robloxId) => request('GET', `/players/${robloxId}/full-check`),
+  getAccountHistory: (robloxId) => request('GET', `/players/${robloxId}/history`),
+
+  /**
+   * Poll a command until it reaches a terminal status (completed/failed/expired)
+   * or the timeout is hit. Used for "read-back" commands like /checkgeld where
+   * the reply needs the actual result Roblox sends back, not just "queued".
+   */
+  async waitForCommandResult(id, timeoutMs = 8000, intervalMs = 700) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const command = await api.getCommand(id);
+      if (['completed', 'failed', 'expired'].includes(command.status)) {
+        return command;
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    return null; // timed out, still pending/processing
+  },
 };
 
 module.exports = api;

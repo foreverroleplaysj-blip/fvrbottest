@@ -14,6 +14,7 @@ const {
   isPositiveInteger,
 } = require('../utils/validate');
 const { isValidJob } = require('../../shared/jobs');
+const { isValidItem } = require('../../shared/items');
 const asyncHandler = require('../utils/asyncHandler');
 
 const router = express.Router();
@@ -22,6 +23,8 @@ const COMMAND_TTL_MS = 5 * 60 * 1000; // Commands expire after 5 minutes if not 
 const MAX_MONEY_AMOUNT = parseInt(process.env.MAX_MONEY_AMOUNT, 10) || 1000000;
 const MAX_RANK_LEVEL = parseInt(process.env.MAX_RANK_LEVEL, 10) || 20;
 const MAX_JOB_LEVEL = parseInt(process.env.MAX_JOB_LEVEL, 10) || 100;
+const MAX_ITEM_AMOUNT = parseInt(process.env.MAX_ITEM_AMOUNT, 10) || 100;
+const MAX_COINS_AMOUNT = parseInt(process.env.MAX_COINS_AMOUNT, 10) || 100000;
 
 async function logAudit(action, discordId, robloxId, details) {
   await db.execute({
@@ -77,18 +80,6 @@ function validatePayload(type, payload) {
     case 'unban':
       return null; // no payload required
 
-    case 'revive':
-      return null; // no payload required — target player is revived at their last known position
-
-    case 'jumpscare':
-      if (payload.image !== undefined && typeof payload.image !== 'string') {
-        return 'image must be a string (asset id or url)';
-      }
-      if (payload.sound !== undefined && typeof payload.sound !== 'string') {
-        return 'sound must be a string (asset id)';
-      }
-      return null;
-
     case 'announce':
       if (typeof payload.message !== 'string' || payload.message.length < 1 || payload.message.length > 500) {
         return 'message must be a non-empty string (max 500 chars)';
@@ -109,6 +100,39 @@ function validatePayload(type, payload) {
         return 'delaySeconds must be an integer between 0 and 300';
       }
       return null;
+
+    case 'jumpscare':
+      return null; // no payload required
+
+    case 'revive':
+      return null; // no payload required
+
+    case 'give_item':
+      if (!isValidItem(payload.item)) {
+        return 'item must be a valid item from the whitelist';
+      }
+      if (!isPositiveInteger(payload.amount, MAX_ITEM_AMOUNT) || payload.amount < 1) {
+        return `amount must be an integer between 1 and ${MAX_ITEM_AMOUNT}`;
+      }
+      return null;
+
+    case 'clear_inventory':
+      return null; // no payload required
+
+    case 'give_coins':
+      if (!isPositiveInteger(payload.amount, MAX_COINS_AMOUNT) || payload.amount < 1) {
+        return `amount must be an integer between 1 and ${MAX_COINS_AMOUNT}`;
+      }
+      return null;
+
+    case 'give_pack':
+      if (typeof payload.packName !== 'string' || payload.packName.length < 1 || payload.packName.length > 100) {
+        return 'packName must be a non-empty string';
+      }
+      return null;
+
+    case 'check_money':
+      return null; // no payload required
 
     default:
       return 'Unsupported command type';
