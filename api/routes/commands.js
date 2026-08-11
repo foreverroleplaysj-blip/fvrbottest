@@ -77,6 +77,18 @@ function validatePayload(type, payload) {
     case 'unban':
       return null; // no payload required
 
+    case 'revive':
+      return null; // no payload required — target player is revived at their last known position
+
+    case 'jumpscare':
+      if (payload.image !== undefined && typeof payload.image !== 'string') {
+        return 'image must be a string (asset id or url)';
+      }
+      if (payload.sound !== undefined && typeof payload.sound !== 'string') {
+        return 'sound must be a string (asset id)';
+      }
+      return null;
+
     case 'announce':
       if (typeof payload.message !== 'string' || payload.message.length < 1 || payload.message.length > 500) {
         return 'message must be a non-empty string (max 500 chars)';

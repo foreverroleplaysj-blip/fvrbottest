@@ -22,6 +22,8 @@ const MANAGEMENT_COMMANDS = new Set([
   'announce',
   'shutdown',
   'unverify',
+  'revive',
+  'jumpscare',
 ]);
 
 // Commands staff are explicitly allowed to run.
@@ -30,6 +32,7 @@ const STAFF_COMMANDS = new Set([
   'userinfo',
   'online',
   'checkverify',
+  'checkaccount',
 ]);
 
 // Commands anyone (verified guild member) may run.

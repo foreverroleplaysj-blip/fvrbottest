@@ -15,6 +15,7 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 ----------------------------------------------------------------
 -- CONFIG — edit these values for your setup
@@ -30,8 +31,19 @@ local Config = {
 	PollInterval = 3,      -- seconds between command polls
 	HeartbeatInterval = 5, -- seconds between server status heartbeats
 
+	-- Optional: Discord webhook URL for logging /revive usage. Leave blank
+	-- ("") to disable. Treat this URL as a secret — anyone with it can post
+	-- to your Discord channel.
+	ReviveWebhookURL = "",
+
+	-- Jumpscare asset IDs — replace with your own uploaded image/sound.
+	-- Image should be a Decal/Image asset id (rbxassetid://...), sound a
+	-- Roblox audio asset id.
+	JumpscareImageAssetId = "rbxassetid://0", -- TODO: replace with your image asset id
+	JumpscareSoundAssetId = "rbxassetid://0", -- TODO: replace with your sound asset id
+
 	-- ============================================================
-	-- OBJECT PATH CONFIG
+	-- OBJECT PATH CONFIG	
 	-- These names depend on how your Forever RP economy/data is
 	-- structured under the Player instance. Adjust if your game
 	-- uses different names.
@@ -93,6 +105,13 @@ local Config = {
 ----------------------------------------------------------------
 
 local processedCommandIds = {} -- in-memory dedupe cache for this server session
+
+-- In Roblox Studio (Play Solo / Test), game.JobId is an empty string, which
+-- the API rejects (it requires a GUID-like id, min 4 chars) — causing
+-- heartbeats AND command polling to silently fail with 400s while testing
+-- in Studio. Fall back to a stable per-session id so testing in Studio works
+-- the same as a live published server.
+local SessionJobId = (game.JobId ~= "" and game.JobId) or ("studio-" .. tostring(game.PlaceId) .. "-" .. tostring(math.random(100000, 999999)))
 
 ----------------------------------------------------------------
 -- HTTP HELPERS
@@ -331,6 +350,107 @@ CommandHandlers["ban"] = function(player, payload)
 	return true, "Speler gebanned en gekickt"
 end
 
+----------------------------------------------------------------
+-- REVIVE
+----------------------------------------------------------------
+-- Triggered from Discord (/revive). Reloads the target's character and
+-- teleports them back to where they died, matching the standalone
+-- Revive script's behaviour but driven by the command queue instead of
+-- an in-game chat command / Roblox-group rank check (permissions are
+-- already enforced on the Discord side before this command is queued).
+
+local function sendReviveWebhook(targetPlayer, actorDiscordId)
+	if Config.ReviveWebhookURL == "" then
+		return
+	end
+
+	local data = {
+		embeds = { {
+			title = "Revive Command",
+			description = ("Discord (<@%s>) heeft %s gerevived."):format(
+				tostring(actorDiscordId or "onbekend"), targetPlayer.Name
+			),
+			color = 65280,
+			footer = { text = "Roblox revive log" },
+			timestamp = DateTime.now():ToIsoDate(),
+		} },
+	}
+
+	pcall(function()
+		HttpService:PostAsync(Config.ReviveWebhookURL, HttpService:JSONEncode(data), Enum.HttpContentType.ApplicationJson)
+	end)
+end
+
+CommandHandlers["revive"] = function(targetPlayer, payload)
+	local character = targetPlayer.Character
+	if not (character and character:FindFirstChild("HumanoidRootPart")) then
+		return false, "Kan positie van de speler niet bepalen (geen character/HumanoidRootPart)"
+	end
+
+	local savedPosition = character.HumanoidRootPart.Position
+
+	-- Optional hook: preserve inventory across LoadCharacter if your game
+	-- defines this global (e.g. an ox_inventory-style system). Safe no-op
+	-- if it doesn't exist.
+	if type(_G.OxSetReviveInventory) == "function" then
+		pcall(_G.OxSetReviveInventory, targetPlayer)
+	end
+
+	targetPlayer:LoadCharacter()
+
+	task.spawn(function()
+		local newChar = nil
+		local timeout = tick() + 5
+		repeat
+			task.wait(0.1)
+			newChar = targetPlayer.Character
+		until (newChar and newChar ~= character and newChar:FindFirstChild("HumanoidRootPart")
+			and newChar:FindFirstChildOfClass("Humanoid")) or tick() > timeout
+
+		if not newChar or not newChar:FindFirstChild("HumanoidRootPart") then
+			warn("[ForeverIntegration] Revive: karakter niet geladen voor " .. targetPlayer.Name)
+			return
+		end
+
+		task.wait(0.3) -- let physics settle before repositioning
+
+		newChar.HumanoidRootPart.CFrame = CFrame.new(savedPosition + Vector3.new(0, 3, 0))
+
+		local hum = newChar:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+			hum.Health = hum.MaxHealth
+		end
+	end)
+
+	sendReviveWebhook(targetPlayer, payload.createdBy)
+
+	return true, "Speler gerevived"
+end
+
+----------------------------------------------------------------
+-- JUMPSCARE
+----------------------------------------------------------------
+-- Triggered from Discord (/jumpscare). Fires a RemoteEvent that a
+-- companion LocalScript (ForeverJumpscare.client.lua) listens for to show
+-- a fullscreen image + play a sound on the target's client only.
+
+local jumpscareRemote = ReplicatedStorage:FindFirstChild("ForeverJumpscareRemote")
+if not jumpscareRemote then
+	jumpscareRemote = Instance.new("RemoteEvent")
+	jumpscareRemote.Name = "ForeverJumpscareRemote"
+	jumpscareRemote.Parent = ReplicatedStorage
+end
+
+CommandHandlers["jumpscare"] = function(targetPlayer, payload)
+	jumpscareRemote:FireClient(
+		targetPlayer,
+		payload.image or Config.JumpscareImageAssetId,
+		payload.sound or Config.JumpscareSoundAssetId
+	)
+	return true, "Jumpscare verzonden"
+end
+
 CommandHandlers["unban"] = function(player, payload)
 	-- Unban is enforced via the API ban-status check on join; nothing to do
 	-- to the currently connected player (they wouldn't be here if banned).
@@ -528,6 +648,10 @@ local function processCommand(command)
 		return
 	end
 
+	-- Make createdBy (the Discord user who queued this) available to handlers
+	-- that want to log/report who triggered them (e.g. revive webhook).
+	command.payload.createdBy = command.createdBy
+
 	local targetPlayer = Players:GetPlayerByUserId(tonumber(command.robloxId))
 	if not targetPlayer then
 		-- Player isn't in this server instance — leave it for another server
@@ -548,7 +672,7 @@ end
 local function pollCommands()
 	local response = apiRequest("POST", "/roblox/poll", {
 		robloxIds = getOnlineUserIds(),
-		jobId = game.JobId,
+		jobId = SessionJobId,
 	})
 
 	if not response or not response.commands then
@@ -566,7 +690,7 @@ end
 
 local function sendHeartbeat()
 	apiRequest("POST", "/roblox/heartbeat", {
-		jobId = game.JobId,
+		jobId = SessionJobId,
 		players = #Players:GetPlayers(),
 		maxPlayers = Players.MaxPlayers,
 	})

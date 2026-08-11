@@ -74,6 +74,9 @@ const api = {
 
   // ---- Servers ----
   getOnlineServers: () => request('GET', '/servers/online'),
+
+  // ---- Players ----
+  getFullAccountCheck: (robloxId) => request('GET', `/players/${robloxId}/full-check`),
 };
 
 module.exports = api;

@@ -68,6 +68,7 @@ router.post(
           type: row.type,
           robloxId: row.roblox_id,
           payload: JSON.parse(row.payload),
+          createdBy: row.created_by || null,
         });
       }
     }
