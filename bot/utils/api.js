@@ -75,6 +75,11 @@ const api = {
   // ---- Servers ----
   getOnlineServers: () => request('GET', '/servers/online'),
 
+  // ---- Discord guilds (powers the dashboard's "kies een server" screen) ----
+  syncDiscordGuilds: (guilds) => request('POST', '/discord-guilds/sync', { guilds }),
+  upsertDiscordGuild: (id, name, icon) => request('POST', '/discord-guilds/upsert', { id, name, icon }),
+  removeDiscordGuild: (guildId) => request('DELETE', `/discord-guilds/${guildId}`),
+
   // ---- Players ----
   getAccountHistory: (robloxId) => request('GET', `/players/${robloxId}/history`),
 

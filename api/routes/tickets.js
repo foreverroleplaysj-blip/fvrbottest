@@ -17,6 +17,7 @@ const {
   isPositiveInteger,
 } = require('../utils/validate');
 const asyncHandler = require('../utils/asyncHandler');
+const { requireApiKey, requireApiKeyOrGuildAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -138,6 +139,7 @@ async function getTypeRows(guildId) {
 // Returns the panel configuration plus its configured ticket types.
 router.get(
   '/config/:guildId',
+  requireApiKeyOrGuildAccess,
   asyncHandler(async (req, res) => {
     const { guildId } = req.params;
     if (!isDiscordId(guildId)) return res.status(400).json({ error: 'Invalid guildId' });
@@ -154,6 +156,7 @@ router.get(
 // the row with defaults first if this guild has never been configured.
 router.post(
   '/config',
+  requireApiKeyOrGuildAccess,
   asyncHandler(async (req, res) => {
     const { guildId, ...fields } = req.body || {};
     if (!isDiscordId(guildId)) return res.status(400).json({ error: 'Invalid or missing guildId' });
@@ -222,6 +225,7 @@ router.post(
 // GET /tickets/types/:guildId
 router.get(
   '/types/:guildId',
+  requireApiKeyOrGuildAccess,
   asyncHandler(async (req, res) => {
     const { guildId } = req.params;
     if (!isDiscordId(guildId)) return res.status(400).json({ error: 'Invalid guildId' });
@@ -234,6 +238,7 @@ router.get(
 // POST /tickets/types  { guildId, key?, label, emoji?, description?, categoryId?, supportRoleId?, nameFormat?, welcomeMessage? }
 router.post(
   '/types',
+  requireApiKeyOrGuildAccess,
   asyncHandler(async (req, res) => {
     const { guildId, label } = req.body || {};
     let { key, emoji, description, categoryId, supportRoleId, nameFormat, welcomeMessage } = req.body || {};
@@ -301,6 +306,7 @@ router.post(
 // DELETE /tickets/types/:guildId/:key
 router.delete(
   '/types/:guildId/:key',
+  requireApiKeyOrGuildAccess,
   asyncHandler(async (req, res) => {
     const { guildId, key } = req.params;
     if (!isDiscordId(guildId)) return res.status(400).json({ error: 'Invalid guildId' });
@@ -321,6 +327,7 @@ router.delete(
 // GET /tickets/open-count/:guildId/:openerId
 router.get(
   '/open-count/:guildId/:openerId',
+  requireApiKey,
   asyncHandler(async (req, res) => {
     const { guildId, openerId } = req.params;
     if (!isDiscordId(guildId) || !isDiscordId(openerId)) {
@@ -340,6 +347,7 @@ router.get(
 // Atomically bumps the per-guild ticket counter and records the ticket.
 router.post(
   '/create',
+  requireApiKey,
   asyncHandler(async (req, res) => {
     const { guildId, channelId, openerId, typeKey, typeLabel } = req.body || {};
 
@@ -372,6 +380,7 @@ router.post(
 // GET /tickets/by-channel/:channelId
 router.get(
   '/by-channel/:channelId',
+  requireApiKey,
   asyncHandler(async (req, res) => {
     const { channelId } = req.params;
     if (!isDiscordId(channelId)) return res.status(400).json({ error: 'Invalid channelId' });
@@ -401,6 +410,7 @@ router.get(
 // GET /tickets/list/:guildId?status=open
 router.get(
   '/list/:guildId',
+  requireApiKeyOrGuildAccess,
   asyncHandler(async (req, res) => {
     const { guildId } = req.params;
     if (!isDiscordId(guildId)) return res.status(400).json({ error: 'Invalid guildId' });
@@ -430,6 +440,7 @@ router.get(
 // POST /tickets/claim  { channelId, claimedBy }
 router.post(
   '/claim',
+  requireApiKey,
   asyncHandler(async (req, res) => {
     const { channelId, claimedBy } = req.body || {};
     if (!isDiscordId(channelId)) return res.status(400).json({ error: 'Invalid channelId' });
@@ -452,6 +463,7 @@ router.post(
 // POST /tickets/close  { channelId, closedBy, reason? }
 router.post(
   '/close',
+  requireApiKey,
   asyncHandler(async (req, res) => {
     const { channelId, closedBy, reason } = req.body || {};
     if (!isDiscordId(channelId)) return res.status(400).json({ error: 'Invalid channelId' });

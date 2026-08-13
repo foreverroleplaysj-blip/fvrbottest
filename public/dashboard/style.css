@@ -146,6 +146,69 @@ input[type="color"] {
 .btn-small { padding: 7px 12px; font-size: 13px; }
 .btn-block { width: 100%; margin-top: 20px; }
 
+.btn-discord {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+  background: #5865f2;
+  color: white;
+  box-shadow: 0 8px 24px rgba(88, 101, 242, 0.35);
+}
+.btn-discord:hover { opacity: 0.92; }
+
+/* ---- Server picker screen ---- */
+.picker-card { max-width: 460px; }
+
+.picker-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.picker-header h1 { font-size: 20px; margin: 0 0 4px; }
+.picker-header p { margin: 0; }
+
+.picker-list { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: #0e1119;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.picker-row:hover { background: #171c2a; border-color: var(--accent); }
+
+.picker-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.picker-icon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: white;
+  font-size: 14px;
+}
+
+.picker-name { flex: 1; }
+.picker-arrow { color: var(--muted); }
+
 /* ---- App shell ---- */
 .app { display: flex; min-height: 100vh; }
 

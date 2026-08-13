@@ -9,6 +9,7 @@ const permissions = require('./utils/permissions');
 const embeds = require('./utils/embeds');
 const logger = require('./utils/logger');
 const ticketInteractions = require('./handlers/ticketInteractions');
+const api = require('./utils/api');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],
@@ -32,9 +33,39 @@ for (const file of commandFiles) {
 logger.info(`${client.commands.size} commands geladen.`);
 
 // ---- Ready ----
-client.once('ready', () => {
+client.once('ready', async () => {
   logger.info(`Ingelogd als ${client.user.tag}`);
   client.user.setActivity('Forever Roleplay');
+
+  // Reports every server the bot is currently in to the API, so the
+  // dashboard's "kies een server" screen (after Discord login) knows
+  // where the bot actually is. Non-fatal if it fails — the bot itself
+  // keeps working either way.
+  try {
+    const guilds = client.guilds.cache.map((g) => ({ id: g.id, name: g.name, icon: g.iconURL() || null }));
+    await api.syncDiscordGuilds(guilds);
+    logger.info(`${guilds.length} servers gesynchroniseerd met de API voor het dashboard.`);
+  } catch (err) {
+    logger.error('Kon serverlijst niet synchroniseren met de API:', err);
+  }
+});
+
+// Keeps the dashboard's server list live as the bot is added to / removed
+// from servers, without waiting for the next restart.
+client.on('guildCreate', async (guild) => {
+  try {
+    await api.upsertDiscordGuild(guild.id, guild.name, guild.iconURL() || null);
+  } catch (err) {
+    logger.error(`Kon nieuwe server ${guild.id} niet synchroniseren met de API:`, err);
+  }
+});
+
+client.on('guildDelete', async (guild) => {
+  try {
+    await api.removeDiscordGuild(guild.id);
+  } catch (err) {
+    logger.error(`Kon verwijderde server ${guild.id} niet uit de API halen:`, err);
+  }
 });
 
 // ---- Interaction handling ----

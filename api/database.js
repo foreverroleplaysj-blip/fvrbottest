@@ -80,6 +80,19 @@ CREATE TABLE IF NOT EXISTS servers (
   last_heartbeat INTEGER NOT NULL
 );
 
+-- ---- Discord guilds the bot is in ----
+-- Kept in sync by the bot itself (on ready + guildCreate/guildDelete) via
+-- authenticated API calls. The dashboard's "kies een server" screen cross-
+-- references this against the guilds the logged-in Discord user can
+-- manage, so it only ever shows servers that are BOTH bot-joined AND
+-- theirs to configure.
+CREATE TABLE IF NOT EXISTS discord_guilds (
+  guild_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  icon TEXT,
+  updated_at INTEGER NOT NULL
+);
+
 -- ---- Ticket panel system ----
 -- One config row per Discord server (guild). Everything about how the
 -- panel looks and behaves is stored here so it can be fully configured

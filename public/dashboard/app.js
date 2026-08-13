@@ -1,42 +1,38 @@
 // public/dashboard/app.js
-// Talks directly to the existing /tickets API routes using the same
-// X-API-Key header the bot uses. Nothing here bypasses the API's own
-// validation — this is just a friendlier UI on top of it.
+// Auth flow: "Inloggen met Discord" (server-side OAuth, /auth/discord) sets
+// an httpOnly session cookie — the browser never sees an API key. This
+// file just calls /auth/me to find out who's logged in and which servers
+// they can manage, lets them pick one, then drives the existing
+// /tickets/* API using that cookie (credentials: 'include').
 
 const state = {
-  apiUrl: '',
-  apiKey: '',
   guildId: '',
+  guildName: '',
+  guilds: [],
   types: [],
 };
 
 const $ = (id) => document.getElementById(id);
 
-function loadSession() {
-  const saved = localStorage.getItem('ticketDashboardSession');
-  if (!saved) return false;
-  try {
-    Object.assign(state, JSON.parse(saved));
-    return !!(state.apiUrl && state.apiKey && state.guildId);
-  } catch {
-    return false;
-  }
+const SELECTED_GUILD_KEY = 'ticketDashboardSelectedGuild';
+
+function loadSelectedGuild() {
+  return sessionStorage.getItem(SELECTED_GUILD_KEY) || '';
 }
 
-function saveSession() {
-  localStorage.setItem(
-    'ticketDashboardSession',
-    JSON.stringify({ apiUrl: state.apiUrl, apiKey: state.apiKey, guildId: state.guildId })
-  );
+function saveSelectedGuild(guildId) {
+  sessionStorage.setItem(SELECTED_GUILD_KEY, guildId);
+}
+
+function clearSelectedGuild() {
+  sessionStorage.removeItem(SELECTED_GUILD_KEY);
 }
 
 async function api(method, path, body) {
-  const res = await fetch(`${state.apiUrl}${path}`, {
+  const res = await fetch(path, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': state.apiKey,
-    },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -45,43 +41,87 @@ async function api(method, path, body) {
   return data;
 }
 
-// ---- Login ----
-$('loginBtn').addEventListener('click', async () => {
-  const guildId = $('loginGuildId').value.trim();
-  let apiUrl = $('loginApiUrl').value.trim().replace(/\/$/, '');
-  const apiKey = $('loginApiKey').value.trim();
+function guildIconUrl(guild) {
+  if (!guild.icon) return null;
+  return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=64`;
+}
 
-  $('loginError').textContent = '';
+function showScreen(name) {
+  $('loginScreen').classList.toggle('hidden', name !== 'login');
+  $('pickerScreen').classList.toggle('hidden', name !== 'picker');
+  $('app').classList.toggle('hidden', name !== 'app');
+}
 
-  if (!guildId || !apiUrl || !apiKey) {
-    $('loginError').textContent = 'Vul alle velden in.';
+// ---- Login screen ----
+const LOGIN_ERROR_MESSAGES = {
+  invalid_state: 'Inloggen mislukt (verlopen of ongeldige sessie). Probeer het opnieuw.',
+  token_exchange_failed: 'Discord heeft de login geweigerd. Probeer het opnieuw.',
+  access_denied: 'Je hebt het inloggen geannuleerd.',
+};
+
+function showLoginErrorFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const err = params.get('login_error');
+  if (err) {
+    $('loginError').textContent = LOGIN_ERROR_MESSAGES[err] || `Inloggen mislukt: ${err}`;
+    history.replaceState(null, '', location.pathname);
+  }
+}
+
+// ---- Server picker ----
+function renderPicker() {
+  const list = $('pickerList');
+
+  if (state.guilds.length === 0) {
+    list.innerHTML =
+      '<div class="empty-state">Geen servers gevonden waar je beheerrechten hebt én de bot in zit.<br />Zorg dat de bot is uitgenodigd op je server en je daar "Server beheren" of Administrator rechten hebt.</div>';
     return;
   }
-  if (!/^https?:\/\//.test(apiUrl)) apiUrl = `https://${apiUrl}`;
 
-  state.apiUrl = apiUrl;
-  state.apiKey = apiKey;
-  state.guildId = guildId;
+  list.innerHTML = '';
+  state.guilds.forEach((g) => {
+    const row = document.createElement('button');
+    row.className = 'picker-row';
+    const iconUrl = guildIconUrl(g);
+    row.innerHTML = `
+      ${iconUrl
+        ? `<img class="picker-icon" src="${iconUrl}" alt="" />`
+        : `<div class="picker-icon picker-icon-fallback">${escapeHtml((g.name || '?').charAt(0).toUpperCase())}</div>`
+      }
+      <div class="picker-name">${escapeHtml(g.name)}</div>
+      <span class="picker-arrow">→</span>
+    `;
+    row.addEventListener('click', () => selectGuild(g));
+    list.appendChild(row);
+  });
+}
 
-  $('loginBtn').disabled = true;
-  $('loginBtn').textContent = 'Inloggen...';
+function selectGuild(guild) {
+  state.guildId = guild.id;
+  state.guildName = guild.name;
+  saveSelectedGuild(guild.id);
+  boot();
+}
 
+$('pickerLogoutBtn').addEventListener('click', logout);
+$('switchServerBtn').addEventListener('click', () => {
+  clearSelectedGuild();
+  showScreen('picker');
+});
+
+async function logout() {
   try {
-    await api('GET', `/tickets/config/${guildId}`);
-    saveSession();
-    boot();
-  } catch (err) {
-    $('loginError').textContent = `Inloggen mislukt: ${err.message}`;
-  } finally {
-    $('loginBtn').disabled = false;
-    $('loginBtn').textContent = 'Inloggen';
+    await api('POST', '/auth/logout');
+  } catch {
+    // ignore — clearing local state below is enough either way
   }
-});
+  clearSelectedGuild();
+  state.guildId = '';
+  state.guilds = [];
+  showScreen('login');
+}
 
-$('logoutBtn').addEventListener('click', () => {
-  localStorage.removeItem('ticketDashboardSession');
-  location.reload();
-});
+$('logoutBtn').addEventListener('click', logout);
 
 // ---- Tabs ----
 document.querySelectorAll('.nav-item').forEach((btn) => {
@@ -314,11 +354,10 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// ---- Boot ----
+// ---- Boot into the per-server settings dashboard ----
 async function boot() {
-  $('loginScreen').classList.add('hidden');
-  $('app').classList.remove('hidden');
-  $('guildPill').textContent = state.guildId;
+  showScreen('app');
+  $('guildPill').textContent = state.guildName || state.guildId;
 
   try {
     const { config, types } = await api('GET', `/tickets/config/${state.guildId}`);
@@ -326,6 +365,8 @@ async function boot() {
     state.types = types;
     renderTypes();
     $('statusPill').textContent = '● Verbonden';
+    $('statusPill').style.background = '';
+    $('statusPill').style.color = '';
   } catch (err) {
     $('statusPill').textContent = '● Fout';
     $('statusPill').style.background = 'rgba(239,68,68,0.12)';
@@ -333,6 +374,30 @@ async function boot() {
   }
 }
 
-if (loadSession()) {
-  boot();
-}
+// ---- Entry point ----
+(async function init() {
+  showLoginErrorFromUrl();
+
+  let me;
+  try {
+    me = await api('GET', '/auth/me');
+  } catch {
+    showScreen('login');
+    return;
+  }
+
+  state.guilds = me.guilds || [];
+
+  const savedGuildId = loadSelectedGuild();
+  const savedGuild = state.guilds.find((g) => g.id === savedGuildId);
+
+  if (savedGuild) {
+    state.guildId = savedGuild.id;
+    state.guildName = savedGuild.name;
+    boot();
+  } else {
+    clearSelectedGuild();
+    renderPicker();
+    showScreen('picker');
+  }
+})();
