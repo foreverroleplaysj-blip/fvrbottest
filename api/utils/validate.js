@@ -4,6 +4,8 @@
 const DISCORD_ID_RE = /^[0-9]{15,25}$/;
 const ROBLOX_ID_RE = /^[0-9]{1,20}$/;
 const JOB_ID_RE = /^[a-zA-Z0-9\-]{4,64}$/; // Roblox game server JobId (GUID-like)
+const HEX_COLOR_RE = /^#?[0-9a-fA-F]{6}$/;
+const TICKET_KEY_RE = /^[a-z0-9_-]{1,32}$/;
 
 const ALLOWED_COMMAND_TYPES = new Set([
   'give_money',
@@ -51,6 +53,28 @@ function isPositiveInteger(value, max = Number.MAX_SAFE_INTEGER) {
   return Number.isInteger(value) && value >= 0 && value <= max;
 }
 
+function isHexColor(value) {
+  return typeof value === 'string' && HEX_COLOR_RE.test(value);
+}
+
+function normalizeHexColor(value) {
+  return value.replace('#', '').toLowerCase();
+}
+
+function isTicketKey(value) {
+  return typeof value === 'string' && TICKET_KEY_RE.test(value);
+}
+
+function slugify(value, maxLength = 32) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // strip accents
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, maxLength) || 'ticket';
+}
+
 module.exports = {
   isDiscordId,
   isRobloxId,
@@ -58,6 +82,10 @@ module.exports = {
   isValidCommandType,
   isValidAccount,
   isPositiveInteger,
+  isHexColor,
+  normalizeHexColor,
+  isTicketKey,
+  slugify,
   ALLOWED_COMMAND_TYPES,
   ALLOWED_ACCOUNTS,
 };

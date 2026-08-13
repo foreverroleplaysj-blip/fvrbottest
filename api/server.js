@@ -13,6 +13,7 @@ const commandsRoutes = require('./routes/commands');
 const robloxRoutes = require('./routes/roblox');
 const serversRoutes = require('./routes/servers');
 const playersRoutes = require('./routes/players');
+const ticketsRoutes = require('./routes/tickets');
 const { initDb } = require('./database');
 
 const API_KEY = process.env.API_KEY;
@@ -76,6 +77,7 @@ app.use('/commands', requireApiKey, commandsRoutes);
 app.use('/roblox', requireApiKey, robloxRoutes);
 app.use('/servers', requireApiKey, serversRoutes);
 app.use('/players', requireApiKey, playersRoutes);
+app.use('/tickets', requireApiKey, ticketsRoutes);
 
 // ---- 404 handler ----
 app.use((req, res) => {

@@ -80,66 +80,73 @@ CREATE TABLE IF NOT EXISTS servers (
   last_heartbeat INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS ticket_panels (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  guild_id TEXT NOT NULL,
-  panel_key TEXT NOT NULL,
-  channel_id TEXT,
-  message_id TEXT,
-  title TEXT NOT NULL DEFAULT 'Support Tickets',
-  description TEXT NOT NULL DEFAULT 'Klik op een knop hieronder om een ticket te openen.',
-  color TEXT NOT NULL DEFAULT '#1E3A8A',
-  image_url TEXT,
-  thumbnail_url TEXT,
-  footer_text TEXT,
-  category_channel_id TEXT,
+-- ---- Ticket panel system ----
+-- One config row per Discord server (guild). Everything about how the
+-- panel looks and behaves is stored here so it can be fully configured
+-- via slash commands, without touching code or redeploying.
+CREATE TABLE IF NOT EXISTS ticket_config (
+  guild_id TEXT PRIMARY KEY,
+  panel_title TEXT NOT NULL DEFAULT 'Support Tickets',
+  panel_description TEXT NOT NULL DEFAULT 'Klik hieronder op het onderwerp dat het beste past om een ticket te openen.',
+  panel_color TEXT NOT NULL DEFAULT '1e3a8a',
+  panel_image TEXT,
+  panel_thumbnail TEXT,
+  panel_footer TEXT,
+  category_id TEXT,
   log_channel_id TEXT,
+  transcript_channel_id TEXT,
   support_role_id TEXT,
-  ping_role_id TEXT,
+  name_format TEXT NOT NULL DEFAULT 'ticket-{number}',
+  welcome_message TEXT NOT NULL DEFAULT 'Bedankt voor je ticket, {user}! Beschrijf je vraag of probleem zo duidelijk mogelijk — het team helpt je zo snel mogelijk.',
   max_open_per_user INTEGER NOT NULL DEFAULT 1,
-  naming_format TEXT NOT NULL DEFAULT 'ticket-{username}',
-  welcome_message TEXT,
-  created_by TEXT,
+  require_close_reason INTEGER NOT NULL DEFAULT 0,
+  ping_support_role INTEGER NOT NULL DEFAULT 1,
+  ticket_counter INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  UNIQUE(guild_id, panel_key)
+  updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS ticket_categories (
+-- The individual buttons/options a user can pick from the panel's select
+-- menu. Each type can override the category/role/naming/welcome message
+-- from ticket_config, so different ticket types can behave differently.
+CREATE TABLE IF NOT EXISTS ticket_types (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  panel_id INTEGER NOT NULL REFERENCES ticket_panels(id),
+  guild_id TEXT NOT NULL,
+  key TEXT NOT NULL,
   label TEXT NOT NULL,
   emoji TEXT,
-  style TEXT NOT NULL DEFAULT 'Primary',
   description TEXT,
-  questions TEXT NOT NULL DEFAULT '[]',
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL
+  category_id TEXT,
+  support_role_id TEXT,
+  name_format TEXT,
+  welcome_message TEXT,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  UNIQUE(guild_id, key)
 );
 
 CREATE TABLE IF NOT EXISTS tickets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   guild_id TEXT NOT NULL,
-  panel_id INTEGER,
-  category_id INTEGER,
-  channel_id TEXT NOT NULL,
+  channel_id TEXT UNIQUE NOT NULL,
   opener_id TEXT NOT NULL,
+  type_key TEXT,
+  type_label TEXT,
+  ticket_number INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'open',
   claimed_by TEXT,
-  locked INTEGER NOT NULL DEFAULT 0,
+  close_reason TEXT,
+  closed_by TEXT,
   created_at INTEGER NOT NULL,
-  closed_at INTEGER,
-  closed_by TEXT
+  closed_at INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_accounts_roblox_id ON accounts(roblox_id);
 CREATE INDEX IF NOT EXISTS idx_commands_roblox_id_status ON commands(roblox_id, status);
 CREATE INDEX IF NOT EXISTS idx_bans_roblox_id_active ON bans(roblox_id, active);
-CREATE INDEX IF NOT EXISTS idx_ticket_panels_guild ON ticket_panels(guild_id);
-CREATE INDEX IF NOT EXISTS idx_ticket_categories_panel ON ticket_categories(panel_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_types_guild ON ticket_types(guild_id, position);
 CREATE INDEX IF NOT EXISTS idx_tickets_guild_status ON tickets(guild_id, status);
-CREATE INDEX IF NOT EXISTS idx_tickets_channel ON tickets(channel_id);
-CREATE INDEX IF NOT EXISTS idx_tickets_opener ON tickets(guild_id, opener_id, status);
+CREATE INDEX IF NOT EXISTS idx_tickets_opener_status ON tickets(opener_id, status);
 `;
 
 async function initDb() {

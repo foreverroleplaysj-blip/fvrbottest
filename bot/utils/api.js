@@ -78,6 +78,19 @@ const api = {
   // ---- Players ----
   getAccountHistory: (robloxId) => request('GET', `/players/${robloxId}/history`),
 
+  // ---- Ticket panel system ----
+  getTicketConfig: (guildId) => request('GET', `/tickets/config/${guildId}`),
+  updateTicketConfig: (guildId, fields) => request('POST', '/tickets/config', { guildId, ...fields }),
+  listTicketTypes: (guildId) => request('GET', `/tickets/types/${guildId}`),
+  addTicketType: (guildId, type) => request('POST', '/tickets/types', { guildId, ...type }),
+  removeTicketType: (guildId, key) => request('DELETE', `/tickets/types/${guildId}/${encodeURIComponent(key)}`),
+  createTicketRecord: (data) => request('POST', '/tickets/create', data),
+  getOpenTicketCount: (guildId, openerId) => request('GET', `/tickets/open-count/${guildId}/${openerId}`),
+  getTicketByChannel: (channelId) => request('GET', `/tickets/by-channel/${channelId}`),
+  listTickets: (guildId, status) => request('GET', `/tickets/list/${guildId}${status ? `?status=${status}` : ''}`),
+  claimTicket: (channelId, claimedBy) => request('POST', '/tickets/claim', { channelId, claimedBy }),
+  closeTicket: (channelId, closedBy, reason) => request('POST', '/tickets/close', { channelId, closedBy, reason }),
+
   /**
    * Poll a command until it reaches a terminal status (completed/failed/expired)
    * or the timeout is hit. Used for "read-back" commands like /checkgeld where

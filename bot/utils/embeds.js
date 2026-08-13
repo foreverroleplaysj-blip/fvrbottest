@@ -89,6 +89,21 @@ function serverStatus({ totalPlayers, maxPlayers, servers }) {
   return embed;
 }
 
+// Fully flexible embed used by the ticket system, where colors/images/text
+// are all configured at runtime through /ticket-setup instead of hardcoded.
+function custom({ title, description, color, image, thumbnail, footer, fields }) {
+  const embed = base().setColor(color ?? config.colors.primary);
+
+  if (title) embed.setTitle(title);
+  if (description) embed.setDescription(description);
+  if (image) embed.setImage(image);
+  if (thumbnail) embed.setThumbnail(thumbnail);
+  if (footer) embed.setFooter({ text: footer });
+  if (fields?.length) embed.addFields(fields);
+
+  return embed;
+}
+
 module.exports = {
   success,
   error,
@@ -97,4 +112,5 @@ module.exports = {
   verification,
   audit,
   serverStatus,
+  custom,
 };

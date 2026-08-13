@@ -28,6 +28,11 @@ const MANAGEMENT_COMMANDS = new Set([
   'clearinventory',
   'givecoins',
   'givepack',
+  'ticket-setup',
+  'ticket-addtype',
+  'ticket-removetype',
+  'ticket-listtypes',
+  'ticket-send',
 ]);
 
 // Commands staff are explicitly allowed to run.
@@ -38,6 +43,11 @@ const STAFF_COMMANDS = new Set([
   'checkverify',
   'checkaccount',
   'checkgeld',
+  'ticket-claim',
+  'ticket-close',
+  'ticket-add',
+  'ticket-remove',
+  'ticket-list',
 ]);
 
 // Commands anyone (verified guild member) may run.
