@@ -10,11 +10,11 @@ const {
   ActionRowBuilder,
   MessageFlags,
 } = require('discord.js');
-const ticketDb = require('../utils/ticketDb');
-const tickets = require('../utils/tickets');
-const embeds = require('../utils/embeds');
-const permissions = require('../utils/permissions');
-const logger = require('../utils/logger');
+const ticketDb = require('./utils/ticketDb');
+const tickets = require('./utils/tickets');
+const embeds = require('./utils/embeds');
+const permissions = require('./utils/permissions');
+const logger = require('./utils/logger');
 
 function isTicketInteraction(interaction) {
   return typeof interaction.customId === 'string' && interaction.customId.startsWith('tk:');
