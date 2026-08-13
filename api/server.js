@@ -55,6 +55,18 @@ function requireApiKey(req, res, next) {
   next();
 }
 
+// ---- Uptime check ----
+// Simpele root route zodat UptimeRobot (of vergelijkbare monitors) via een
+// GET- of HEAD-request kan controleren of de Render-server online is.
+// Geen auth vereist, geen /healthz — bewust op '/' gehouden.
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+app.head('/', (req, res) => {
+  res.status(200).end();
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
