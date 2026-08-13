@@ -28,8 +28,10 @@ if (!API_KEY) {
 
 const app = express();
 
+const path = require('path');
+
 app.disable('x-powered-by');
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '100kb' }));
 
 // ---- Global rate limiting ----
@@ -78,6 +80,9 @@ app.use('/roblox', requireApiKey, robloxRoutes);
 app.use('/servers', requireApiKey, serversRoutes);
 app.use('/players', requireApiKey, playersRoutes);
 app.use('/tickets', requireApiKey, ticketsRoutes);
+
+// ---- Dashboard (static, browser-side auth via X-API-Key) ----
+app.use('/dashboard', express.static(path.join(__dirname, '..', 'public', 'dashboard')));
 
 // ---- 404 handler ----
 app.use((req, res) => {

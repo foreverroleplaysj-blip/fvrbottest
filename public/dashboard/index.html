@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Forever RP — Ticket Panel Dashboard</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🎫</div>
+    <h1>Ticket Panel Dashboard</h1>
+    <p class="muted">Log in met je server- en API-gegevens</p>
+
+    <label>Server (Guild) ID</label>
+    <input id="loginGuildId" type="text" placeholder="bv. 123456789012345678" autocomplete="off" />
+
+    <label>API basis-URL</label>
+    <input id="loginApiUrl" type="text" placeholder="https://jouw-app.onrender.com" autocomplete="off" />
+
+    <label>API Key</label>
+    <input id="loginApiKey" type="password" placeholder="X-API-Key" autocomplete="off" />
+
+    <button id="loginBtn" class="btn btn-primary btn-block">Inloggen</button>
+    <p id="loginError" class="error-text"></p>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <span class="sidebar-logo">🎫</span>
+      <div>
+        <div class="sidebar-title">Ticket Panel</div>
+        <div class="sidebar-sub">Forever RP</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="settings">⚙️ Paneel instellingen</button>
+      <button class="nav-item" data-tab="types">🏷️ Ticket types</button>
+      <button class="nav-item" data-tab="tickets">📋 Open tickets</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="guild-pill" id="guildPill">—</div>
+      <button id="logoutBtn" class="btn btn-ghost btn-small btn-block">Uitloggen</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="pageTitle">Paneel instellingen</h1>
+        <p class="muted" id="pageSubtitle">Pas het uiterlijk en gedrag van je ticket panel volledig aan.</p>
+      </div>
+      <div class="topbar-actions">
+        <span id="statusPill" class="status-pill"></span>
+      </div>
+    </header>
+
+    <!-- ---- Settings tab ---- -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="grid-2">
+        <div class="panel-card">
+          <h2>Uiterlijk</h2>
+
+          <label>Titel</label>
+          <input id="cfg_panelTitle" type="text" maxlength="256" />
+
+          <label>Beschrijving</label>
+          <textarea id="cfg_panelDescription" rows="4" maxlength="2000"></textarea>
+
+          <label>Kleur</label>
+          <div class="color-row">
+            <input id="cfg_panelColorPicker" type="color" value="#1e3a8a" />
+            <input id="cfg_panelColor" type="text" maxlength="7" placeholder="1e3a8a" />
+          </div>
+
+          <label>Banner afbeelding (URL)</label>
+          <input id="cfg_panelImage" type="text" placeholder="https://..." />
+
+          <label>Thumbnail (URL)</label>
+          <input id="cfg_panelThumbnail" type="text" placeholder="https://..." />
+
+          <label>Footer tekst</label>
+          <input id="cfg_panelFooter" type="text" maxlength="2048" />
+        </div>
+
+        <div class="panel-card">
+          <h2>Live preview</h2>
+          <div class="discord-preview">
+            <div class="discord-embed" id="previewEmbed">
+              <div class="discord-embed-bar" id="previewBar"></div>
+              <div class="discord-embed-body">
+                <img id="previewThumb" class="discord-embed-thumb hidden" />
+                <div class="discord-embed-title" id="previewTitle">Support Tickets</div>
+                <div class="discord-embed-desc" id="previewDesc">Klik hieronder op het onderwerp dat het beste past.</div>
+                <img id="previewImage" class="discord-embed-image hidden" />
+                <div class="discord-embed-footer" id="previewFooter"></div>
+              </div>
+            </div>
+            <div class="discord-select">📩 Kies een onderwerp om een ticket te openen ▾</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel-card">
+          <h2>Gedrag</h2>
+
+          <label>Categorie ID (waar ticket-kanalen komen)</label>
+          <input id="cfg_categoryId" type="text" placeholder="Discord categorie ID" />
+
+          <label>Log / transcript kanaal ID</label>
+          <input id="cfg_logChannelId" type="text" placeholder="Discord kanaal ID" />
+
+          <label>Support rol ID</label>
+          <input id="cfg_supportRoleId" type="text" placeholder="Discord rol ID" />
+
+          <label>Kanaalnaam formaat <span class="hint">({number} {user} {type})</span></label>
+          <input id="cfg_nameFormat" type="text" placeholder="ticket-{number}" />
+
+          <div class="toggle-row">
+            <label class="toggle">
+              <input id="cfg_pingSupportRole" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <div class="toggle-label">Ping support rol bij openen</div>
+              <div class="toggle-sub muted">Stuurt een korte @rol ping die direct verwijderd wordt (notificatie zonder spam)</div>
+            </div>
+          </div>
+
+          <div class="toggle-row">
+            <label class="toggle">
+              <input id="cfg_requireCloseReason" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <div class="toggle-label">Reden verplicht bij sluiten</div>
+              <div class="toggle-sub muted">Via /ticket-close moet dan altijd een reden opgegeven worden</div>
+            </div>
+          </div>
+
+          <label>Max. gelijktijdig open tickets per gebruiker</label>
+          <input id="cfg_maxOpenPerUser" type="number" min="1" max="25" value="1" />
+        </div>
+
+        <div class="panel-card">
+          <h2>Welkomstbericht</h2>
+          <p class="muted">Dit bericht komt bovenaan elk nieuw ticket-kanaal. Placeholders: <code>{user}</code> <code>{type}</code></p>
+          <textarea id="cfg_welcomeMessage" rows="6" maxlength="2000"></textarea>
+        </div>
+      </div>
+
+      <div class="save-bar">
+        <button id="saveSettingsBtn" class="btn btn-primary">💾 Instellingen opslaan</button>
+        <span id="saveStatus" class="save-status"></span>
+      </div>
+
+      <div class="panel-card notice">
+        <strong>Panel versturen naar Discord</strong>
+        <p class="muted">Dit dashboard bewerkt alleen de instellingen. Om het panel daadwerkelijk in een kanaal te plaatsen (of te vernieuwen na wijzigingen), gebruik je in Discord: <code>/ticket-send kanaal:#jouw-kanaal</code>.</p>
+      </div>
+    </section>
+
+    <!-- ---- Types tab ---- -->
+    <section id="tab-types" class="tab-panel hidden">
+      <div class="panel-card">
+        <h2>Nieuw ticket type</h2>
+        <div class="grid-3">
+          <div>
+            <label>Label</label>
+            <input id="type_label" type="text" maxlength="80" placeholder="Algemene vraag" />
+          </div>
+          <div>
+            <label>Emoji</label>
+            <input id="type_emoji" type="text" maxlength="20" placeholder="🎫" />
+          </div>
+          <div>
+            <label>Key (optioneel)</label>
+            <input id="type_key" type="text" maxlength="32" placeholder="auto-gegenereerd" />
+          </div>
+        </div>
+        <label>Beschrijving (in select-menu)</label>
+        <input id="type_description" type="text" maxlength="100" placeholder="Korte omschrijving" />
+
+        <div class="grid-3">
+          <div>
+            <label>Categorie ID <span class="hint">(override)</span></label>
+            <input id="type_categoryId" type="text" placeholder="optioneel" />
+          </div>
+          <div>
+            <label>Rol ID <span class="hint">(override)</span></label>
+            <input id="type_supportRoleId" type="text" placeholder="optioneel" />
+          </div>
+          <div>
+            <label>Naam formaat <span class="hint">(override)</span></label>
+            <input id="type_nameFormat" type="text" placeholder="optioneel" />
+          </div>
+        </div>
+
+        <label>Welkomstbericht <span class="hint">(override, optioneel)</span></label>
+        <textarea id="type_welcomeMessage" rows="3" maxlength="2000"></textarea>
+
+        <div class="save-bar">
+          <button id="addTypeBtn" class="btn btn-primary">➕ Type toevoegen</button>
+          <span id="addTypeStatus" class="save-status"></span>
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <h2>Huidige ticket types <span class="count-pill" id="typeCount">0/25</span></h2>
+        <div id="typesList" class="types-list"></div>
+      </div>
+    </section>
+
+    <!-- ---- Tickets tab ---- -->
+    <section id="tab-tickets" class="tab-panel hidden">
+      <div class="panel-card">
+        <div class="flex-between">
+          <h2>Open tickets</h2>
+          <button id="refreshTicketsBtn" class="btn btn-ghost btn-small">🔄 Vernieuwen</button>
+        </div>
+        <div id="ticketsList" class="tickets-list"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
