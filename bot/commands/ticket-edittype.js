@@ -33,7 +33,7 @@ module.exports = {
     .addIntegerOption((opt) =>
       opt
         .setName('max_open')
-        .setDescription('Overschrijft max. gelijktijdig open tickets van dit type per gebruiker (1-25). 0 = override verwijderen')
+        .setDescription('Max. open tickets van dit type per gebruiker (1-25). 0 = override verwijderen')
         .setMinValue(0)
         .setMaxValue(25)
     ),
