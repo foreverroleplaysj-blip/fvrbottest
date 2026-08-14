@@ -14,16 +14,20 @@ const { requireApiKey, requireApiKeyOrGuildAccess } = require('../middleware/aut
 const router = express.Router();
 
 function rowToGiveaway(row) {
+  const entries = row.entries ? JSON.parse(row.entries) : [];
   return {
     id: row.id,
     guildId: row.guild_id,
     channelId: row.channel_id,
     messageId: row.message_id,
     prize: row.prize,
+    description: row.description || null,
     winnerCount: Number(row.winner_count),
     hostId: row.host_id,
     requiredRoleId: row.required_role_id || null,
     status: row.status,
+    entries,
+    entryCount: entries.length,
     winners: row.winners ? JSON.parse(row.winners) : null,
     endsAt: Number(row.ends_at),
     createdAt: Number(row.created_at),
@@ -32,12 +36,12 @@ function rowToGiveaway(row) {
 }
 
 // POST /giveaways/create
-// { guildId, channelId, messageId, prize, winnerCount, hostId, requiredRoleId?, endsAt }
+// { guildId, channelId, messageId, prize, description?, winnerCount, hostId, requiredRoleId?, endsAt }
 router.post(
   '/create',
   requireApiKey,
   asyncHandler(async (req, res) => {
-    const { guildId, channelId, messageId, prize, winnerCount, hostId, requiredRoleId, endsAt } = req.body || {};
+    const { guildId, channelId, messageId, prize, description, winnerCount, hostId, requiredRoleId, endsAt } = req.body || {};
 
     if (!isDiscordId(guildId)) return res.status(400).json({ error: 'Invalid or missing guildId' });
     if (!isDiscordId(channelId)) return res.status(400).json({ error: 'Invalid or missing channelId' });
@@ -45,6 +49,9 @@ router.post(
     if (!isDiscordId(hostId)) return res.status(400).json({ error: 'Invalid or missing hostId' });
     if (typeof prize !== 'string' || !prize.trim() || prize.length > 256) {
       return res.status(400).json({ error: 'prize must be a non-empty string under 256 characters' });
+    }
+    if (description !== undefined && description !== null && (typeof description !== 'string' || description.length > 1000)) {
+      return res.status(400).json({ error: 'description must be a string under 1000 characters' });
     }
     if (!isPositiveInteger(Number(winnerCount), 50) || Number(winnerCount) < 1) {
       return res.status(400).json({ error: 'winnerCount must be an integer between 1 and 50' });
@@ -60,15 +67,52 @@ router.post(
     let result;
     try {
       result = await db.execute({
-        sql: `INSERT INTO giveaways (guild_id, channel_id, message_id, prize, winner_count, host_id, required_role_id, status, ends_at, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-        args: [guildId, channelId, messageId, prize.trim(), Number(winnerCount), hostId, requiredRoleId || null, endsAt, now],
+        sql: `INSERT INTO giveaways (guild_id, channel_id, message_id, prize, description, winner_count, host_id, required_role_id, status, entries, ends_at, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', '[]', ?, ?)`,
+        args: [guildId, channelId, messageId, prize.trim(), description?.trim() || null, Number(winnerCount), hostId, requiredRoleId || null, endsAt, now],
       });
     } catch (err) {
       return res.status(409).json({ error: 'Er bestaat al een giveaway voor dit bericht' });
     }
 
     res.status(201).json({ id: Number(result.lastInsertRowid) });
+  })
+);
+
+// POST /giveaways/enter  { id, userId }
+// Toggles a user's entry (click to join, click again to leave) — this is
+// what the 🎉 "Enter" button on the giveaway message calls. Returns the
+// new state so the bot can update the "Entries: N" counter immediately.
+router.post(
+  '/enter',
+  requireApiKey,
+  asyncHandler(async (req, res) => {
+    const { id, userId } = req.body || {};
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid id' });
+    if (!isDiscordId(userId)) return res.status(400).json({ error: 'Invalid or missing userId' });
+
+    const existingResult = await db.execute({ sql: 'SELECT * FROM giveaways WHERE id = ?', args: [id] });
+    const existing = existingResult.rows[0];
+    if (!existing) return res.status(404).json({ error: 'Giveaway niet gevonden' });
+    if (existing.status !== 'active') return res.status(409).json({ error: 'Deze giveaway is niet meer actief' });
+
+    const entries = existing.entries ? JSON.parse(existing.entries) : [];
+    const idx = entries.indexOf(userId);
+    let entered;
+    if (idx === -1) {
+      entries.push(userId);
+      entered = true;
+    } else {
+      entries.splice(idx, 1);
+      entered = false;
+    }
+
+    await db.execute({
+      sql: `UPDATE giveaways SET entries = ? WHERE id = ?`,
+      args: [JSON.stringify(entries), id],
+    });
+
+    res.json({ entered, count: entries.length });
   })
 );
 

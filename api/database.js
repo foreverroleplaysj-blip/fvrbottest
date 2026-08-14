@@ -160,20 +160,22 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 
 -- ---- Giveaways ----
--- Classic reaction-based giveaway (🎉), same spirit as GiveawayBot. Entries
--- are never stored separately — at draw time the bot pulls the live list of
--- users who reacted directly from Discord, so this table only needs to
--- remember what the giveaway IS and how it ended.
+-- Button-based giveaway (GiveawayBot-style 🎉 "Enter" button). Entries are
+-- stored right here as a JSON array of Discord user IDs, toggled via
+-- POST /giveaways/enter whenever someone clicks the button — that's what
+-- powers the live "Entries: N" counter on the embed.
 CREATE TABLE IF NOT EXISTS giveaways (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   guild_id TEXT NOT NULL,
   channel_id TEXT NOT NULL,
   message_id TEXT UNIQUE NOT NULL,
   prize TEXT NOT NULL,
+  description TEXT,
   winner_count INTEGER NOT NULL DEFAULT 1,
   host_id TEXT NOT NULL,
   required_role_id TEXT,
   status TEXT NOT NULL DEFAULT 'active', -- active | ended | cancelled
+  entries TEXT NOT NULL DEFAULT '[]', -- JSON array of Discord user IDs who entered
   winners TEXT, -- JSON array of Discord user IDs, set once ended
   ends_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
@@ -210,6 +212,10 @@ const MIGRATIONS = [
   `ALTER TABLE tickets ADD COLUMN close_reason TEXT`,
   `ALTER TABLE tickets ADD COLUMN closed_by TEXT`,
   `ALTER TABLE tickets ADD COLUMN closed_at INTEGER`,
+  // Giveaways: retrofit for databases created before the button/description/
+  // entries system existed.
+  `ALTER TABLE giveaways ADD COLUMN description TEXT`,
+  `ALTER TABLE giveaways ADD COLUMN entries TEXT NOT NULL DEFAULT '[]'`,
 ];
 
 async function initDb() {

@@ -2,7 +2,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const api = require('../utils/api');
 const embeds = require('../utils/embeds');
-const { fetchReactors, pickWinners, formatWinners } = require('../utils/giveaways');
+const { pickWinners, formatWinners } = require('../utils/giveaways');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -47,20 +47,18 @@ module.exports = {
       }
 
       const channel = await interaction.client.channels.fetch(giveaway.channelId).catch(() => null);
-      const message = channel ? await channel.messages.fetch(giveaway.messageId).catch(() => null) : null;
-      if (!channel || !message) {
-        await interaction.editReply({ embeds: [embeds.error('Kon niet herleiden', 'Het oorspronkelijke bericht is niet meer te vinden.')] });
+      if (!channel) {
+        await interaction.editReply({ embeds: [embeds.error('Kon niet herleiden', 'Het oorspronkelijke kanaal is niet meer te vinden.')] });
         return;
       }
 
-      let reactors = await fetchReactors(message);
+      let pool = giveaway.entries || [];
       if (giveaway.requiredRoleId) {
-        const ids = reactors.map((u) => u.id);
-        const members = ids.length ? await channel.guild.members.fetch({ user: ids }).catch(() => new Map()) : new Map();
-        reactors = reactors.filter((u) => members.get(u.id)?.roles.cache.has(giveaway.requiredRoleId));
+        const members = pool.length ? await channel.guild.members.fetch({ user: pool }).catch(() => new Map()) : new Map();
+        pool = pool.filter((id) => members.get(id)?.roles.cache.has(giveaway.requiredRoleId));
       }
 
-      const winners = pickWinners(reactors.map((u) => u.id), count ?? giveaway.winnerCount);
+      const winners = pickWinners(pool, count ?? giveaway.winnerCount);
 
       await api.rerollGiveaway(id, winners);
 

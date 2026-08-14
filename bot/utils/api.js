@@ -101,6 +101,7 @@ const api = {
 
   // ---- Giveaways ----
   createGiveaway: (data) => request('POST', '/giveaways/create', data),
+  enterGiveaway: (id, userId) => request('POST', '/giveaways/enter', { id, userId }),
   getActiveGiveaways: () => request('GET', '/giveaways/active'),
   getGiveaway: (id) => request('GET', `/giveaways/${id}`),
   listGuildGiveaways: (guildId, status) => request('GET', `/giveaways/guild/${guildId}${status ? `?status=${status}` : ''}`),

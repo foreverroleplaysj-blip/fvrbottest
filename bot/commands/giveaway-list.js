@@ -20,7 +20,10 @@ module.exports = {
       }
 
       const description = giveaways
-        .map((g) => `**${g.prize}** — ${g.winnerCount} winnaar(s), eindigt <t:${Math.floor(g.endsAt / 1000)}:R> (host: <@${g.hostId}>)`)
+        .map(
+          (g) =>
+            `**${g.prize}** — ${g.entryCount ?? 0} deelnemer(s), ${g.winnerCount} winnaar(s), eindigt <t:${Math.floor(g.endsAt / 1000)}:R> (host: <@${g.hostId}>)`
+        )
         .join('\n');
 
       await interaction.editReply({ embeds: [embeds.info(`Lopende giveaways (${giveaways.length})`, description)] });

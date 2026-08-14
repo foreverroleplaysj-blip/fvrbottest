@@ -1,25 +1,38 @@
 // bot/utils/giveaways.js
-// Shared helpers for the classic reaction-based giveaway system (🎉, same
-// spirit as GiveawayBot) — used by the slash commands and the scheduler.
+// Shared helpers for the button-based giveaway system (GiveawayBot-style
+// 🎉 "Enter" button + live entry counter) — used by the slash commands,
+// the button/modal handler, and the scheduler.
 
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const embeds = require('./embeds');
 const logger = require('./logger');
 
 const GIVEAWAY_EMOJI = '🎉';
+const ENTER_BUTTON_PREFIX = 'giveaway_enter_';
 
 const DURATION_RE = /(\d+)\s*(w|d|h|m|s)/gi;
 const UNIT_MS = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
 
 /**
- * Parses a compact duration string like "1d", "2h30m", "45s" into
- * milliseconds. Returns null if nothing valid could be parsed.
+ * Parses a compact duration string like "1d", "2h30m", "45s" — or a plain
+ * English phrase like "10 minutes" / "2 hours" — into milliseconds.
+ * Returns null if nothing valid could be parsed.
  */
 function parseDuration(input) {
   if (!input || typeof input !== 'string') return null;
+
+  const normalized = input
+    .toLowerCase()
+    .replace(/seconden|seconds|second|sec\b/g, 's')
+    .replace(/minuten|minuut|minutes|minute|min\b/g, 'm')
+    .replace(/uren|uur|hours|hour|hr\b/g, 'h')
+    .replace(/dagen|dag|days|day/g, 'd')
+    .replace(/weken|week|weeks/g, 'w');
+
   let total = 0;
   let matched = false;
 
-  for (const match of input.matchAll(DURATION_RE)) {
+  for (const match of normalized.matchAll(DURATION_RE)) {
     matched = true;
     const amount = Number(match[1]);
     const unit = match[2].toLowerCase();
@@ -43,61 +56,51 @@ function formatWinners(winnerIds) {
 }
 
 /**
- * Builds the giveaway embed, for both the still-running and the
- * already-ended state.
+ * Builds the giveaway embed, styled like GiveawayBot: prize as the title,
+ * an optional description, then "Ends / Hosted by / Entries / Winners"
+ * lines — for both the still-running and the already-ended state.
  */
-function buildGiveawayEmbed({ prize, winnerCount, hostId, requiredRoleId, endsAt, ended, winners }) {
-  const lines = [
-    `Reageer met ${GIVEAWAY_EMOJI} om mee te doen!`,
-    '',
-    `**Winnaars:** ${winnerCount}`,
-    `**Host:** <@${hostId}>`,
-  ];
-  if (requiredRoleId) lines.push(`**Vereist:** <@&${requiredRoleId}>`);
-  lines.push(ended ? `**Geëindigd:** <t:${Math.floor(endsAt / 1000)}:R>` : `**Eindigt:** <t:${Math.floor(endsAt / 1000)}:R>`);
+function buildGiveawayEmbed({ prize, description, winnerCount, hostId, requiredRoleId, endsAt, ended, winners, entryCount }) {
+  const ts = Math.floor(endsAt / 1000);
+  const lines = [];
+
+  if (description) lines.push(description, '');
+
+  lines.push(ended ? `Ended: <t:${ts}:R> (<t:${ts}:f>)` : `Ends: <t:${ts}:R> (<t:${ts}:f>)`);
+  lines.push(`Hosted by: <@${hostId}>`);
+  if (requiredRoleId) lines.push(`Vereiste rol: <@&${requiredRoleId}>`);
+  lines.push(`Entries: ${entryCount ?? 0}`);
+  lines.push(`Winners: ${winnerCount}`);
 
   if (ended) {
-    lines.push('', `**Winnaar(s):** ${formatWinners(winners)}`);
+    lines.push('', `Winner(s): ${formatWinners(winners)}`);
   }
 
-  const embed = embeds.custom({
-    title: `${ended ? '🎉 Giveaway geëindigd' : '🎉 Giveaway'} — ${prize}`,
+  return embeds.custom({
+    title: prize,
     description: lines.join('\n'),
-    color: ended ? 0x6b7280 : 0xf59e0b,
+    color: ended ? 0x6b7280 : 0x5865f2,
   });
+}
 
-  return embed;
+/** Builds the 🎉 "Enter" button row shown under the giveaway message. */
+function buildGiveawayButtonRow(giveawayId, ended) {
+  const button = new ButtonBuilder()
+    .setCustomId(`${ENTER_BUTTON_PREFIX}${giveawayId}`)
+    .setEmoji(GIVEAWAY_EMOJI)
+    .setStyle(ButtonStyle.Primary)
+    .setLabel(ended ? 'Giveaway afgelopen' : 'Meedoen')
+    .setDisabled(Boolean(ended));
+
+  return new ActionRowBuilder().addComponents(button);
 }
 
 /**
- * Pages through every user who reacted with the giveaway emoji on a
- * message, via plain REST calls (no gateway reaction intent needed).
- * Bots are excluded, since the bot's own entry reaction shouldn't count.
- */
-async function fetchReactors(message) {
-  const reaction = message.reactions.cache.get(GIVEAWAY_EMOJI);
-  if (!reaction) return [];
-
-  const users = [];
-  let after;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const batch = await reaction.users.fetch({ limit: 100, after });
-    if (batch.size === 0) break;
-    users.push(...batch.values());
-    after = batch.last().id;
-    if (batch.size < 100) break;
-  }
-
-  return users.filter((u) => !u.bot);
-}
-
-/**
- * Draws winners for a giveaway: fetches the message, pulls current
- * reactors, applies the required-role filter (if any), picks winners,
- * edits the embed to its "ended" state, announces in-channel, and
- * persists the result via the API. Shared by /giveaway-end and the
- * auto-end scheduler so both behave identically.
+ * Draws winners for a giveaway: applies the required-role filter (if any)
+ * to its stored entries, picks winners, edits the embed + button to their
+ * "ended" state, announces in-channel, and persists the result via the
+ * API. Shared by /giveaway-end and the auto-end scheduler so both behave
+ * identically.
  */
 async function drawGiveaway({ client, giveaway, api }) {
   const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
@@ -112,28 +115,29 @@ async function drawGiveaway({ client, giveaway, api }) {
     return { cancelled: true, reason: 'Bericht niet gevonden' };
   }
 
-  let reactors = await fetchReactors(message);
+  let pool = giveaway.entries || [];
 
   if (giveaway.requiredRoleId) {
     const guild = channel.guild;
-    const ids = reactors.map((u) => u.id);
-    const members = ids.length ? await guild.members.fetch({ user: ids }).catch(() => new Map()) : new Map();
-    reactors = reactors.filter((u) => members.get(u.id)?.roles.cache.has(giveaway.requiredRoleId));
+    const members = pool.length ? await guild.members.fetch({ user: pool }).catch(() => new Map()) : new Map();
+    pool = pool.filter((id) => members.get(id)?.roles.cache.has(giveaway.requiredRoleId));
   }
 
-  const winners = pickWinners(reactors.map((u) => u.id), giveaway.winnerCount);
+  const winners = pickWinners(pool, giveaway.winnerCount);
 
   const endedEmbed = buildGiveawayEmbed({
     prize: giveaway.prize,
+    description: giveaway.description,
     winnerCount: giveaway.winnerCount,
     hostId: giveaway.hostId,
     requiredRoleId: giveaway.requiredRoleId,
     endsAt: giveaway.endsAt,
     ended: true,
     winners,
+    entryCount: giveaway.entryCount ?? (giveaway.entries || []).length,
   });
 
-  await message.edit({ embeds: [endedEmbed] }).catch(() => {});
+  await message.edit({ embeds: [endedEmbed], components: [buildGiveawayButtonRow(giveaway.id, true)] }).catch(() => {});
 
   await channel
     .send({
@@ -157,10 +161,11 @@ async function drawGiveaway({ client, giveaway, api }) {
 
 module.exports = {
   GIVEAWAY_EMOJI,
+  ENTER_BUTTON_PREFIX,
   parseDuration,
   pickWinners,
   formatWinners,
   buildGiveawayEmbed,
-  fetchReactors,
+  buildGiveawayButtonRow,
   drawGiveaway,
 };

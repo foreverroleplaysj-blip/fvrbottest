@@ -9,6 +9,7 @@ const permissions = require('./utils/permissions');
 const embeds = require('./utils/embeds');
 const logger = require('./utils/logger');
 const ticketInteractions = require('./handlers/ticketInteractions');
+const giveawayInteractions = require('./handlers/giveawayInteractions');
 const api = require('./utils/api');
 const { startGiveawayScheduler } = require('./giveawayScheduler');
 
@@ -90,6 +91,15 @@ client.on('interactionCreate', async (interaction) => {
       await ticketInteractions.handleTicketInteraction(interaction);
     } catch (err) {
       logger.error('Fout bij ticket interactie:', err);
+    }
+    return;
+  }
+
+  if (giveawayInteractions.isGiveawayInteraction(interaction)) {
+    try {
+      await giveawayInteractions.handleGiveawayInteraction(interaction);
+    } catch (err) {
+      logger.error('Fout bij giveaway interactie:', err);
     }
     return;
   }
