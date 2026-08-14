@@ -22,7 +22,17 @@ module.exports = {
       }
 
       const description = types
-        .map((t, i) => `**${i + 1}.** ${t.emoji ? `${t.emoji} ` : ''}${t.label} — \`${t.key}\`${t.description ? `\n   ↳ ${t.description}` : ''}`)
+        .map((t, i) => {
+          const flags = [
+            t.claimEnabled === false ? '🚫 claim' : null,
+            t.closeEnabled === false ? '🚫 sluiten' : null,
+            t.askDescription === false ? null : '📝 beschrijving',
+            t.maxOpenOverride ? `max ${t.maxOpenOverride}` : null,
+          ].filter(Boolean);
+          return `**${i + 1}.** ${t.emoji ? `${t.emoji} ` : ''}${t.label} — \`${t.key}\`${t.description ? `\n   ↳ ${t.description}` : ''}${
+            flags.length ? `\n   ⚙️ ${flags.join(' · ')}` : ''
+          }`;
+        })
         .join('\n');
 
       await interaction.editReply({

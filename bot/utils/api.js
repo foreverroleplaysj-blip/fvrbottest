@@ -88,9 +88,12 @@ const api = {
   updateTicketConfig: (guildId, fields) => request('POST', '/tickets/config', { guildId, ...fields }),
   listTicketTypes: (guildId) => request('GET', `/tickets/types/${guildId}`),
   addTicketType: (guildId, type) => request('POST', '/tickets/types', { guildId, ...type }),
+  updateTicketType: (guildId, key, fields) =>
+    request('PATCH', `/tickets/types/${guildId}/${encodeURIComponent(key)}`, fields),
   removeTicketType: (guildId, key) => request('DELETE', `/tickets/types/${guildId}/${encodeURIComponent(key)}`),
   createTicketRecord: (data) => request('POST', '/tickets/create', data),
-  getOpenTicketCount: (guildId, openerId) => request('GET', `/tickets/open-count/${guildId}/${openerId}`),
+  getOpenTicketCount: (guildId, openerId, typeKey) =>
+    request('GET', `/tickets/open-count/${guildId}/${openerId}${typeKey ? `?typeKey=${encodeURIComponent(typeKey)}` : ''}`),
   getTicketByChannel: (channelId) => request('GET', `/tickets/by-channel/${channelId}`),
   listTickets: (guildId, status) => request('GET', `/tickets/list/${guildId}${status ? `?status=${status}` : ''}`),
   claimTicket: (channelId, claimedBy) => request('POST', '/tickets/claim', { channelId, claimedBy }),

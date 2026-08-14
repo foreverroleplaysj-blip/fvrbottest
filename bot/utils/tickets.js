@@ -41,22 +41,40 @@ function sanitizeChannelName(name) {
   return (cleaned || 'ticket').slice(0, 100);
 }
 
-function ticketControlRow({ claimed = false, closed = false } = {}) {
-  const claimBtn = new ButtonBuilder()
-    .setCustomId('ticket_claim')
-    .setLabel(claimed ? 'Geclaimd' : 'Claim')
-    .setEmoji('🙋')
-    .setStyle(ButtonStyle.Primary)
-    .setDisabled(claimed || closed);
+/**
+ * Builds the claim/close button row. Either button can be turned off
+ * entirely per ticket-type (claimEnabled / closeEnabled) — e.g. a type
+ * where tickets should never be manually closed by the opener. Returns
+ * null when both buttons are disabled, since Discord doesn't allow an
+ * empty action row.
+ */
+function ticketControlRow({ claimed = false, closed = false, claimEnabled = true, closeEnabled = true } = {}) {
+  const buttons = [];
 
-  const closeBtn = new ButtonBuilder()
-    .setCustomId('ticket_close')
-    .setLabel('Sluiten')
-    .setEmoji('🔒')
-    .setStyle(ButtonStyle.Danger)
-    .setDisabled(closed);
+  if (claimEnabled) {
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId('ticket_claim')
+        .setLabel(claimed ? 'Geclaimd' : 'Claim')
+        .setEmoji('🙋')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(claimed || closed)
+    );
+  }
 
-  return new ActionRowBuilder().addComponents(claimBtn, closeBtn);
+  if (closeEnabled) {
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId('ticket_close')
+        .setLabel('Sluiten')
+        .setEmoji('🔒')
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(closed)
+    );
+  }
+
+  if (buttons.length === 0) return null;
+  return new ActionRowBuilder().addComponents(buttons);
 }
 
 function ticketDeleteRow() {

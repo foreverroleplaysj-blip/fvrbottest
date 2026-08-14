@@ -160,6 +160,7 @@ function fillSettingsForm(config) {
   $('cfg_requireCloseReason').checked = !!config.requireCloseReason;
   $('cfg_maxOpenPerUser').value = config.maxOpenPerUser || 1;
   $('cfg_welcomeMessage').value = config.welcomeMessage || '';
+  $('cfg_showTicketInfo').checked = config.showTicketInfo !== false;
   updatePreview();
 }
 
@@ -214,6 +215,7 @@ $('saveSettingsBtn').addEventListener('click', async () => {
     pingSupportRole: $('cfg_pingSupportRole').checked,
     requireCloseReason: $('cfg_requireCloseReason').checked,
     maxOpenPerUser: parseInt($('cfg_maxOpenPerUser').value, 10) || 1,
+    showTicketInfo: $('cfg_showTicketInfo').checked,
   };
 
   try {
@@ -230,6 +232,24 @@ $('saveSettingsBtn').addEventListener('click', async () => {
 });
 
 // ---- Types tab ----
+const TYPE_FORM_FIELDS = [
+  'type_label',
+  'type_emoji',
+  'type_key',
+  'type_description',
+  'type_categoryId',
+  'type_supportRoleId',
+  'type_nameFormat',
+  'type_welcomeMessage',
+  'type_maxOpenOverride',
+];
+
+state.editingTypeKey = null;
+
+function badge(text, tone) {
+  return `<span class="type-flag type-flag-${tone || 'muted'}">${escapeHtml(text)}</span>`;
+}
+
 function renderTypes() {
   $('typeCount').textContent = `${state.types.length}/25`;
   const list = $('typesList');
@@ -243,17 +263,29 @@ function renderTypes() {
   state.types.forEach((t) => {
     const row = document.createElement('div');
     row.className = 'type-row';
+
+    const flags = [];
+    if (t.claimEnabled === false) flags.push(badge('Claim uit', 'off'));
+    if (t.closeEnabled === false) flags.push(badge('Sluiten uit', 'off'));
+    if (t.askDescription !== false) flags.push(badge('Vraagt beschrijving', 'on'));
+    if (t.maxOpenOverride) flags.push(badge(`Max ${t.maxOpenOverride}`, 'on'));
+
     row.innerHTML = `
       <div class="type-row-info">
         <span class="type-emoji">${t.emoji || '🎫'}</span>
         <div>
           <div class="type-label">${escapeHtml(t.label)} <span class="type-key">(${escapeHtml(t.key)})</span></div>
           ${t.description ? `<div class="type-desc">${escapeHtml(t.description)}</div>` : ''}
+          ${flags.length ? `<div class="type-flags">${flags.join('')}</div>` : ''}
         </div>
       </div>
-      <button class="btn btn-danger btn-small" data-key="${escapeHtml(t.key)}">Verwijderen</button>
+      <div class="type-row-actions">
+        <button class="btn btn-ghost btn-small" data-action="edit" data-key="${escapeHtml(t.key)}">Bewerken</button>
+        <button class="btn btn-danger btn-small" data-action="delete" data-key="${escapeHtml(t.key)}">Verwijderen</button>
+      </div>
     `;
-    row.querySelector('button').addEventListener('click', () => removeType(t.key));
+    row.querySelector('[data-action="edit"]').addEventListener('click', () => startEditType(t));
+    row.querySelector('[data-action="delete"]').addEventListener('click', () => removeType(t.key));
     list.appendChild(row);
   });
 }
@@ -268,16 +300,54 @@ async function removeType(key) {
   if (!confirm(`Ticket type "${key}" verwijderen?`)) return;
   try {
     await api('DELETE', `/tickets/types/${state.guildId}/${encodeURIComponent(key)}`);
+    if (state.editingTypeKey === key) resetTypeForm();
     await loadTypes();
   } catch (err) {
     alert(`Verwijderen mislukt: ${err.message}`);
   }
 }
 
+function startEditType(t) {
+  state.editingTypeKey = t.key;
+  $('type_label').value = t.label || '';
+  $('type_emoji').value = t.emoji || '';
+  $('type_key').value = t.key || '';
+  $('type_key').disabled = true;
+  $('type_description').value = t.description || '';
+  $('type_categoryId').value = t.categoryId || '';
+  $('type_supportRoleId').value = t.supportRoleId || '';
+  $('type_nameFormat').value = t.nameFormat || '';
+  $('type_welcomeMessage').value = t.welcomeMessage || '';
+  $('type_maxOpenOverride').value = t.maxOpenOverride || '';
+  $('type_claimEnabled').checked = t.claimEnabled !== false;
+  $('type_closeEnabled').checked = t.closeEnabled !== false;
+  $('type_askDescription').checked = t.askDescription !== false;
+
+  $('typeFormTitle').textContent = `Type bewerken — ${t.label}`;
+  $('addTypeBtn').textContent = '💾 Wijzigingen opslaan';
+  $('cancelEditTypeBtn').classList.remove('hidden');
+  document.querySelector('[data-tab="types"]').scrollIntoView?.();
+}
+
+function resetTypeForm() {
+  state.editingTypeKey = null;
+  TYPE_FORM_FIELDS.forEach((id) => ($(id).value = ''));
+  $('type_key').disabled = false;
+  $('type_claimEnabled').checked = true;
+  $('type_closeEnabled').checked = true;
+  $('type_askDescription').checked = true;
+  $('typeFormTitle').textContent = 'Nieuw ticket type';
+  $('addTypeBtn').textContent = '➕ Type toevoegen';
+  $('cancelEditTypeBtn').classList.add('hidden');
+}
+
+$('cancelEditTypeBtn').addEventListener('click', resetTypeForm);
+
 $('addTypeBtn').addEventListener('click', async () => {
   const btn = $('addTypeBtn');
   const status = $('addTypeStatus');
   const label = $('type_label').value.trim();
+  const isEditing = !!state.editingTypeKey;
 
   if (!label) {
     status.style.color = 'var(--danger)';
@@ -287,26 +357,37 @@ $('addTypeBtn').addEventListener('click', async () => {
 
   btn.disabled = true;
   status.style.color = 'var(--success)';
-  status.textContent = 'Toevoegen...';
+  status.textContent = isEditing ? 'Opslaan...' : 'Toevoegen...';
 
-  const body = {
-    guildId: state.guildId,
+  const maxOpenRaw = $('type_maxOpenOverride').value.trim();
+
+  const sharedFields = {
     label,
-    emoji: $('type_emoji').value.trim() || undefined,
-    key: $('type_key').value.trim() || undefined,
-    description: $('type_description').value.trim() || undefined,
-    categoryId: $('type_categoryId').value.trim() || undefined,
-    supportRoleId: $('type_supportRoleId').value.trim() || undefined,
-    nameFormat: $('type_nameFormat').value.trim() || undefined,
-    welcomeMessage: $('type_welcomeMessage').value.trim() || undefined,
+    emoji: $('type_emoji').value.trim() || null,
+    description: $('type_description').value.trim() || null,
+    categoryId: $('type_categoryId').value.trim() || null,
+    supportRoleId: $('type_supportRoleId').value.trim() || null,
+    nameFormat: $('type_nameFormat').value.trim() || null,
+    welcomeMessage: $('type_welcomeMessage').value.trim() || null,
+    claimEnabled: $('type_claimEnabled').checked,
+    closeEnabled: $('type_closeEnabled').checked,
+    askDescription: $('type_askDescription').checked,
+    maxOpenOverride: maxOpenRaw ? parseInt(maxOpenRaw, 10) : null,
   };
 
   try {
-    await api('POST', '/tickets/types', body);
-    status.textContent = '✅ Toegevoegd';
-    ['type_label', 'type_emoji', 'type_key', 'type_description', 'type_categoryId', 'type_supportRoleId', 'type_nameFormat', 'type_welcomeMessage'].forEach(
-      (id) => ($(id).value = '')
-    );
+    if (isEditing) {
+      await api('PATCH', `/tickets/types/${state.guildId}/${encodeURIComponent(state.editingTypeKey)}`, sharedFields);
+      status.textContent = '✅ Opgeslagen';
+    } else {
+      await api('POST', '/tickets/types', {
+        guildId: state.guildId,
+        key: $('type_key').value.trim() || undefined,
+        ...sharedFields,
+      });
+      status.textContent = '✅ Toegevoegd';
+    }
+    resetTypeForm();
     await loadTypes();
   } catch (err) {
     status.style.color = 'var(--danger)';

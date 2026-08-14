@@ -19,6 +19,9 @@ module.exports = {
       const ticket = await api.getTicketByChannel(interaction.channelId);
       const { config } = await api.getTicketConfig(interaction.guildId);
 
+      // /ticket-close is a staff command, so it intentionally bypasses a
+      // type's "close via button disabled" setting — that setting only
+      // hides the button for the opener, staff can still always close.
       if (config.requireCloseReason && !reason) {
         await interaction.editReply({
           embeds: [embeds.error('Reden verplicht', 'Deze server vereist een reden bij het sluiten. Gebruik `/ticket-close reden:<...>`.')],

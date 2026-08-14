@@ -155,6 +155,17 @@
 
           <label>Max. gelijktijdig open tickets per gebruiker</label>
           <input id="cfg_maxOpenPerUser" type="number" min="1" max="25" value="1" />
+
+          <div class="toggle-row">
+            <label class="toggle">
+              <input id="cfg_showTicketInfo" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <div class="toggle-label">"Ticket Information" blok tonen</div>
+              <div class="toggle-sub muted">Toont Categorie / Opener / Datum bovenaan elk ticket, zoals een klassiek ticket-paneel</div>
+            </div>
+          </div>
         </div>
 
         <div class="panel-card">
@@ -178,7 +189,7 @@
     <!-- ---- Types tab ---- -->
     <section id="tab-types" class="tab-panel hidden">
       <div class="panel-card">
-        <h2>Nieuw ticket type</h2>
+        <h2 id="typeFormTitle">Nieuw ticket type</h2>
         <div class="grid-3">
           <div>
             <label>Label</label>
@@ -214,8 +225,45 @@
         <label>Welkomstbericht <span class="hint">(override, optioneel)</span></label>
         <textarea id="type_welcomeMessage" rows="3" maxlength="2000"></textarea>
 
+        <label>Max. open tickets van dit type per gebruiker <span class="hint">(override, optioneel)</span></label>
+        <input id="type_maxOpenOverride" type="number" min="1" max="25" placeholder="gebruikt algemene instelling" />
+
+        <div class="toggle-row">
+          <label class="toggle">
+            <input id="type_claimEnabled" type="checkbox" checked />
+            <span class="toggle-slider"></span>
+          </label>
+          <div>
+            <div class="toggle-label">"Claim" knop tonen</div>
+            <div class="toggle-sub muted">Zet uit om tickets van dit type niet claimbaar te maken</div>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle">
+            <input id="type_closeEnabled" type="checkbox" checked />
+            <span class="toggle-slider"></span>
+          </label>
+          <div>
+            <div class="toggle-label">"Sluiten" knop tonen</div>
+            <div class="toggle-sub muted">Zet uit als alleen staff via /ticket-close mag sluiten</div>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle">
+            <input id="type_askDescription" type="checkbox" checked />
+            <span class="toggle-slider"></span>
+          </label>
+          <div>
+            <div class="toggle-label">Vraag om beschrijving bij openen</div>
+            <div class="toggle-sub muted">Toont een invulvenster ("Waar gaat het over?") voordat het ticket wordt aangemaakt</div>
+          </div>
+        </div>
+
         <div class="save-bar">
           <button id="addTypeBtn" class="btn btn-primary">➕ Type toevoegen</button>
+          <button id="cancelEditTypeBtn" class="btn btn-ghost hidden">Annuleren</button>
           <span id="addTypeStatus" class="save-status"></span>
         </div>
       </div>

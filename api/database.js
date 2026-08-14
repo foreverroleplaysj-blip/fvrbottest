@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS ticket_config (
   max_open_per_user INTEGER NOT NULL DEFAULT 1,
   require_close_reason INTEGER NOT NULL DEFAULT 0,
   ping_support_role INTEGER NOT NULL DEFAULT 1,
+  show_ticket_info INTEGER NOT NULL DEFAULT 1,
   ticket_counter INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -134,6 +135,10 @@ CREATE TABLE IF NOT EXISTS ticket_types (
   name_format TEXT,
   welcome_message TEXT,
   position INTEGER NOT NULL DEFAULT 0,
+  claim_enabled INTEGER NOT NULL DEFAULT 1,
+  close_enabled INTEGER NOT NULL DEFAULT 1,
+  ask_description INTEGER NOT NULL DEFAULT 1,
+  max_open_override INTEGER,
   created_at INTEGER NOT NULL,
   UNIQUE(guild_id, key)
 );
@@ -162,8 +167,28 @@ CREATE INDEX IF NOT EXISTS idx_tickets_guild_status ON tickets(guild_id, status)
 CREATE INDEX IF NOT EXISTS idx_tickets_opener_status ON tickets(opener_id, status);
 `;
 
+// Columns added after the initial release. CREATE TABLE IF NOT EXISTS does
+// not retrofit existing tables, so on every boot we make sure these exist
+// too — each ALTER is wrapped so an "already exists" error (fresh installs
+// that already have the column via SCHEMA above) is silently ignored.
+const MIGRATIONS = [
+  `ALTER TABLE ticket_types ADD COLUMN claim_enabled INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE ticket_types ADD COLUMN close_enabled INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE ticket_types ADD COLUMN ask_description INTEGER NOT NULL DEFAULT 1`,
+  `ALTER TABLE ticket_types ADD COLUMN max_open_override INTEGER`,
+  `ALTER TABLE ticket_config ADD COLUMN show_ticket_info INTEGER NOT NULL DEFAULT 1`,
+];
+
 async function initDb() {
   await db.executeMultiple(SCHEMA);
+
+  for (const sql of MIGRATIONS) {
+    try {
+      await db.execute({ sql, args: [] });
+    } catch (err) {
+      if (!/duplicate column/i.test(err.message)) throw err;
+    }
+  }
 }
 
 module.exports = { db, initDb };

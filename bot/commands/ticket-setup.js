@@ -65,6 +65,9 @@ module.exports = {
     )
     .addBooleanOption((opt) =>
       opt.setName('verplicht_reden').setDescription('Verplicht een reden bij het sluiten van een ticket via /ticket-close')
+    )
+    .addBooleanOption((opt) =>
+      opt.setName('toon_ticket_info').setDescription('Toon het "Ticket Information" blok (categorie/opener/datum) bovenaan elk ticket')
     ),
 
   async execute(interaction) {
@@ -83,6 +86,7 @@ module.exports = {
       ['max_open_per_gebruiker', 'maxOpenPerUser', (v) => v],
       ['ping_support_rol', 'pingSupportRole', (v) => v],
       ['verplicht_reden', 'requireCloseReason', (v) => v],
+      ['toon_ticket_info', 'showTicketInfo', (v) => v],
     ];
 
     for (const [optName, apiKey, transform] of map) {
@@ -141,6 +145,7 @@ function buildConfigSummary(config) {
         { name: 'Naam formaat', value: `\`${config.nameFormat}\``, inline: true },
         { name: 'Ping support rol', value: config.pingSupportRole ? 'Ja' : 'Nee', inline: true },
         { name: 'Reden verplicht bij sluiten', value: config.requireCloseReason ? 'Ja' : 'Nee', inline: true },
+        { name: 'Ticket Information blok', value: config.showTicketInfo ? 'Ja' : 'Nee', inline: true },
         { name: 'Beschrijving', value: config.panelDescription },
         { name: 'Welkomstbericht', value: config.welcomeMessage },
       ],

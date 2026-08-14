@@ -40,6 +40,7 @@ const DEFAULT_CONFIG = {
   max_open_per_user: 1,
   require_close_reason: 0,
   ping_support_role: 1,
+  show_ticket_info: 1,
   ticket_counter: 0,
 };
 
@@ -60,6 +61,7 @@ const CONFIG_FIELD_MAP = {
   maxOpenPerUser: 'max_open_per_user',
   requireCloseReason: 'require_close_reason',
   pingSupportRole: 'ping_support_role',
+  showTicketInfo: 'show_ticket_info',
 };
 
 function rowToConfig(row) {
@@ -82,6 +84,7 @@ function rowToConfig(row) {
     maxOpenPerUser: Number(source.max_open_per_user),
     requireCloseReason: !!Number(source.require_close_reason),
     pingSupportRole: !!Number(source.ping_support_role),
+    showTicketInfo: source.show_ticket_info === undefined ? true : !!Number(source.show_ticket_info),
     ticketCounter: Number(source.ticket_counter || 0),
   };
 }
@@ -97,14 +100,18 @@ function rowToType(row) {
     nameFormat: row.name_format || null,
     welcomeMessage: row.welcome_message || null,
     position: row.position,
+    claimEnabled: row.claim_enabled === undefined ? true : !!Number(row.claim_enabled),
+    closeEnabled: row.close_enabled === undefined ? true : !!Number(row.close_enabled),
+    askDescription: row.ask_description === undefined ? true : !!Number(row.ask_description),
+    maxOpenOverride: row.max_open_override === null || row.max_open_override === undefined ? null : Number(row.max_open_override),
   };
 }
 
 async function ensureConfigRow(guildId) {
   const now = Date.now();
   await db.execute({
-    sql: `INSERT INTO ticket_config (guild_id, panel_title, panel_description, panel_color, name_format, welcome_message, max_open_per_user, require_close_reason, ping_support_role, ticket_counter, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+    sql: `INSERT INTO ticket_config (guild_id, panel_title, panel_description, panel_color, name_format, welcome_message, max_open_per_user, require_close_reason, ping_support_role, show_ticket_info, ticket_counter, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
           ON CONFLICT(guild_id) DO NOTHING`,
     args: [
       guildId,
@@ -116,6 +123,7 @@ async function ensureConfigRow(guildId) {
       DEFAULT_CONFIG.max_open_per_user,
       DEFAULT_CONFIG.require_close_reason,
       DEFAULT_CONFIG.ping_support_role,
+      DEFAULT_CONFIG.show_ticket_info,
       now,
       now,
     ],
@@ -188,7 +196,7 @@ router.post(
         value = Number(value);
       }
 
-      if (['require_close_reason', 'ping_support_role'].includes(column)) {
+      if (['require_close_reason', 'ping_support_role', 'show_ticket_info'].includes(column)) {
         value = value ? 1 : 0;
       }
 
@@ -241,7 +249,19 @@ router.post(
   requireApiKeyOrGuildAccess,
   asyncHandler(async (req, res) => {
     const { guildId, label } = req.body || {};
-    let { key, emoji, description, categoryId, supportRoleId, nameFormat, welcomeMessage } = req.body || {};
+    let {
+      key,
+      emoji,
+      description,
+      categoryId,
+      supportRoleId,
+      nameFormat,
+      welcomeMessage,
+      claimEnabled,
+      closeEnabled,
+      askDescription,
+      maxOpenOverride,
+    } = req.body || {};
 
     if (!isDiscordId(guildId)) return res.status(400).json({ error: 'Invalid or missing guildId' });
     if (typeof label !== 'string' || label.trim().length === 0 || label.length > 80) {
@@ -270,6 +290,14 @@ router.post(
     if (welcomeMessage !== undefined && welcomeMessage !== null && (typeof welcomeMessage !== 'string' || welcomeMessage.length > 2000)) {
       return res.status(400).json({ error: 'welcomeMessage must be under 2000 characters' });
     }
+    if (maxOpenOverride !== undefined && maxOpenOverride !== null) {
+      if (!isPositiveInteger(Number(maxOpenOverride), 25) || Number(maxOpenOverride) < 1) {
+        return res.status(400).json({ error: 'maxOpenOverride must be an integer between 1 and 25, or null' });
+      }
+      maxOpenOverride = Number(maxOpenOverride);
+    } else {
+      maxOpenOverride = null;
+    }
 
     const existing = await getTypeRows(guildId);
     if (existing.length >= MAX_TYPES_PER_GUILD) {
@@ -282,8 +310,8 @@ router.post(
     await ensureConfigRow(guildId);
 
     await db.execute({
-      sql: `INSERT INTO ticket_types (guild_id, key, label, emoji, description, category_id, support_role_id, name_format, welcome_message, position, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO ticket_types (guild_id, key, label, emoji, description, category_id, support_role_id, name_format, welcome_message, position, claim_enabled, close_enabled, ask_description, max_open_override, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         guildId,
         key,
@@ -295,11 +323,113 @@ router.post(
         nameFormat || null,
         welcomeMessage || null,
         existing.length,
+        claimEnabled === false ? 0 : 1,
+        closeEnabled === false ? 0 : 1,
+        askDescription === false ? 0 : 1,
+        maxOpenOverride,
         Date.now(),
       ],
     });
 
     res.status(201).json({ type: { key, label: label.trim(), emoji: emoji || null, description: description || null } });
+  })
+);
+
+// PATCH /tickets/types/:guildId/:key  { label?, emoji?, description?, categoryId?, supportRoleId?, nameFormat?, welcomeMessage?, claimEnabled?, closeEnabled?, askDescription?, maxOpenOverride? }
+// Partial update of an existing ticket type — only fields present in the body are changed.
+router.patch(
+  '/types/:guildId/:key',
+  requireApiKeyOrGuildAccess,
+  asyncHandler(async (req, res) => {
+    const { guildId, key } = req.params;
+    if (!isDiscordId(guildId)) return res.status(400).json({ error: 'Invalid guildId' });
+
+    const existingRows = await getTypeRows(guildId);
+    const current = existingRows.find((t) => t.key === key);
+    if (!current) return res.status(404).json({ error: `Geen ticket type gevonden met key '${key}'` });
+
+    const fields = req.body || {};
+    const setClauses = [];
+    const args = [];
+
+    if ('label' in fields) {
+      if (typeof fields.label !== 'string' || fields.label.trim().length === 0 || fields.label.length > 80) {
+        return res.status(400).json({ error: 'label must be 1-80 characters' });
+      }
+      setClauses.push('label = ?');
+      args.push(fields.label.trim());
+    }
+    if ('emoji' in fields) {
+      if (fields.emoji !== null && (typeof fields.emoji !== 'string' || fields.emoji.length > 100)) {
+        return res.status(400).json({ error: 'emoji must be a short string or null' });
+      }
+      setClauses.push('emoji = ?');
+      args.push(fields.emoji || null);
+    }
+    if ('description' in fields) {
+      if (fields.description !== null && (typeof fields.description !== 'string' || fields.description.length > 100)) {
+        return res.status(400).json({ error: 'description must be under 100 characters or null' });
+      }
+      setClauses.push('description = ?');
+      args.push(fields.description || null);
+    }
+    for (const [key2, column] of [['categoryId', 'category_id'], ['supportRoleId', 'support_role_id']]) {
+      if (key2 in fields) {
+        const val = fields[key2];
+        if (val !== null && !isDiscordId(String(val))) {
+          return res.status(400).json({ error: `${key2} must be a valid Discord snowflake ID or null` });
+        }
+        setClauses.push(`${column} = ?`);
+        args.push(val || null);
+      }
+    }
+    if ('nameFormat' in fields) {
+      if (fields.nameFormat !== null && (typeof fields.nameFormat !== 'string' || fields.nameFormat.length > 100)) {
+        return res.status(400).json({ error: 'nameFormat must be under 100 characters or null' });
+      }
+      setClauses.push('name_format = ?');
+      args.push(fields.nameFormat || null);
+    }
+    if ('welcomeMessage' in fields) {
+      if (fields.welcomeMessage !== null && (typeof fields.welcomeMessage !== 'string' || fields.welcomeMessage.length > 2000)) {
+        return res.status(400).json({ error: 'welcomeMessage must be under 2000 characters or null' });
+      }
+      setClauses.push('welcome_message = ?');
+      args.push(fields.welcomeMessage || null);
+    }
+    if ('claimEnabled' in fields) {
+      setClauses.push('claim_enabled = ?');
+      args.push(fields.claimEnabled ? 1 : 0);
+    }
+    if ('closeEnabled' in fields) {
+      setClauses.push('close_enabled = ?');
+      args.push(fields.closeEnabled ? 1 : 0);
+    }
+    if ('askDescription' in fields) {
+      setClauses.push('ask_description = ?');
+      args.push(fields.askDescription ? 1 : 0);
+    }
+    if ('maxOpenOverride' in fields) {
+      const val = fields.maxOpenOverride;
+      if (val !== null && (!isPositiveInteger(Number(val), 25) || Number(val) < 1)) {
+        return res.status(400).json({ error: 'maxOpenOverride must be an integer between 1 and 25, or null' });
+      }
+      setClauses.push('max_open_override = ?');
+      args.push(val === null ? null : Number(val));
+    }
+
+    if (setClauses.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update were provided' });
+    }
+
+    args.push(guildId, key);
+    await db.execute({
+      sql: `UPDATE ticket_types SET ${setClauses.join(', ')} WHERE guild_id = ? AND key = ?`,
+      args,
+    });
+
+    const updated = (await getTypeRows(guildId)).find((t) => t.key === key);
+    res.json({ type: rowToType(updated) });
   })
 );
 
@@ -324,20 +454,26 @@ router.delete(
   })
 );
 
-// GET /tickets/open-count/:guildId/:openerId
+// GET /tickets/open-count/:guildId/:openerId?typeKey=xyz
+// Without typeKey: total open tickets by this user in the guild (used
+// against the guild-wide maxOpenPerUser). With typeKey: open tickets of
+// just that type (used when a type overrides the limit for itself).
 router.get(
   '/open-count/:guildId/:openerId',
   requireApiKey,
   asyncHandler(async (req, res) => {
     const { guildId, openerId } = req.params;
+    const { typeKey } = req.query;
     if (!isDiscordId(guildId) || !isDiscordId(openerId)) {
       return res.status(400).json({ error: 'Invalid guildId or openerId' });
     }
 
-    const result = await db.execute({
-      sql: `SELECT COUNT(*) as count FROM tickets WHERE guild_id = ? AND opener_id = ? AND status != 'closed'`,
-      args: [guildId, openerId],
-    });
+    const sql = typeKey
+      ? `SELECT COUNT(*) as count FROM tickets WHERE guild_id = ? AND opener_id = ? AND type_key = ? AND status != 'closed'`
+      : `SELECT COUNT(*) as count FROM tickets WHERE guild_id = ? AND opener_id = ? AND status != 'closed'`;
+    const args = typeKey ? [guildId, openerId, typeKey] : [guildId, openerId];
+
+    const result = await db.execute({ sql, args });
 
     res.json({ count: Number(result.rows[0].count) });
   })

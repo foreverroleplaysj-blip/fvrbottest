@@ -28,6 +28,22 @@ module.exports = {
     )
     .addStringOption((opt) =>
       opt.setName('welkomstbericht').setDescription('Overschrijft het welkomstbericht voor dit type').setMaxLength(2000)
+    )
+    .addBooleanOption((opt) =>
+      opt.setName('claim_knop').setDescription('Toon de "Claim" knop in tickets van dit type (standaard: aan)')
+    )
+    .addBooleanOption((opt) =>
+      opt.setName('sluit_knop').setDescription('Toon de "Sluiten" knop in tickets van dit type (standaard: aan)')
+    )
+    .addBooleanOption((opt) =>
+      opt.setName('vraag_beschrijving').setDescription('Vraag de gebruiker om een beschrijving bij het openen (standaard: aan)')
+    )
+    .addIntegerOption((opt) =>
+      opt
+        .setName('max_open')
+        .setDescription('Overschrijft max. gelijktijdig open tickets van dit type per gebruiker (1-25)')
+        .setMinValue(1)
+        .setMaxValue(25)
     ),
 
   async execute(interaction) {
@@ -42,6 +58,10 @@ module.exports = {
       supportRoleId: interaction.options.getRole('rol')?.id,
       nameFormat: interaction.options.getString('naam_formaat') || undefined,
       welcomeMessage: interaction.options.getString('welkomstbericht') || undefined,
+      claimEnabled: interaction.options.get('claim_knop') ? interaction.options.getBoolean('claim_knop') : undefined,
+      closeEnabled: interaction.options.get('sluit_knop') ? interaction.options.getBoolean('sluit_knop') : undefined,
+      askDescription: interaction.options.get('vraag_beschrijving') ? interaction.options.getBoolean('vraag_beschrijving') : undefined,
+      maxOpenOverride: interaction.options.getInteger('max_open') || undefined,
     };
 
     try {

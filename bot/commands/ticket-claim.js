@@ -14,6 +14,14 @@ module.exports = {
 
     try {
       const ticket = await api.getTicketByChannel(interaction.channelId);
+      const { types } = await api.getTicketConfig(interaction.guildId);
+      const type = types.find((t) => t.key === ticket.typeKey);
+
+      if (type && type.claimEnabled === false) {
+        await interaction.editReply({ embeds: [embeds.error('Niet beschikbaar', 'Claimen is uitgeschakeld voor dit ticket-type.')] });
+        return;
+      }
+
       await api.claimTicket(interaction.channelId, interaction.user.id);
 
       await interaction.channel.messages
@@ -21,7 +29,8 @@ module.exports = {
         .then((msgs) => {
           const controlMsg = msgs.find((m) => m.author.id === interaction.client.user.id && m.components.length > 0);
           if (controlMsg) {
-            return controlMsg.edit({ components: [ticketControlRow({ claimed: true })] });
+            const row = ticketControlRow({ claimed: true, claimEnabled: type?.claimEnabled, closeEnabled: type?.closeEnabled });
+            return controlMsg.edit({ components: row ? [row] : [] });
           }
         })
         .catch(() => {});
