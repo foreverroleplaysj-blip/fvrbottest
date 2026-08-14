@@ -190,6 +190,29 @@ CREATE INDEX IF NOT EXISTS idx_tickets_guild_status ON tickets(guild_id, status)
 CREATE INDEX IF NOT EXISTS idx_tickets_opener_status ON tickets(opener_id, status);
 CREATE INDEX IF NOT EXISTS idx_giveaways_status ON giveaways(status, ends_at);
 CREATE INDEX IF NOT EXISTS idx_giveaways_guild ON giveaways(guild_id, status);
+
+-- ---- Welcome messages ----
+-- One row per guild: fully configurable via the dashboard. The bot reads
+-- this on every guildMemberAdd event and posts the message (+ optional
+-- embed, + optional auto-role) accordingly.
+CREATE TABLE IF NOT EXISTS welcome_config (
+  guild_id TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  channel_id TEXT,
+  content TEXT DEFAULT 'Welkom {user}! 🎉',
+  embed_enabled INTEGER NOT NULL DEFAULT 1,
+  embed_title TEXT DEFAULT 'Welkom op de server!',
+  embed_description TEXT DEFAULT '{user} is zojuist lid geworden. We zijn nu met **{membercount}** leden!',
+  embed_color TEXT NOT NULL DEFAULT '10b981',
+  embed_image TEXT,
+  embed_footer TEXT DEFAULT '© Forever Roleplay — All rights reserved',
+  use_avatar_thumbnail INTEGER NOT NULL DEFAULT 1,
+  auto_role_id TEXT,
+  dm_enabled INTEGER NOT NULL DEFAULT 0,
+  dm_message TEXT DEFAULT 'Welkom bij Forever RP, {username}! Fijn dat je er bent.',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 `;
 
 // Columns added after the initial release. CREATE TABLE IF NOT EXISTS does
@@ -216,6 +239,9 @@ const MIGRATIONS = [
   // entries system existed.
   `ALTER TABLE giveaways ADD COLUMN description TEXT`,
   `ALTER TABLE giveaways ADD COLUMN entries TEXT NOT NULL DEFAULT '[]'`,
+  // Welcome messages: retrofit for databases created before this feature.
+  `ALTER TABLE welcome_config ADD COLUMN dm_enabled INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE welcome_config ADD COLUMN dm_message TEXT DEFAULT 'Welkom bij Forever RP, {username}! Fijn dat je er bent.'`,
 ];
 
 async function initDb() {

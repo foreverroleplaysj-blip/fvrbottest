@@ -10,11 +10,16 @@ const embeds = require('./utils/embeds');
 const logger = require('./utils/logger');
 const ticketInteractions = require('./handlers/ticketInteractions');
 const giveawayInteractions = require('./handlers/giveawayInteractions');
+const { handleMemberJoin } = require('./utils/welcome');
 const api = require('./utils/api');
 const { startGiveawayScheduler } = require('./giveawayScheduler');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  // GuildMembers is a privileged intent — it must also be turned ON for
+  // this bot in the Discord Developer Portal (Bot > Privileged Gateway
+  // Intents > "Server Members Intent"), or guildMemberAdd will never fire
+  // and the welcome message will silently never send.
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
 client.commands = new Collection();
@@ -69,6 +74,15 @@ client.on('guildDelete', async (guild) => {
     await api.removeDiscordGuild(guild.id);
   } catch (err) {
     logger.error(`Kon verwijderde server ${guild.id} niet uit de API halen:`, err);
+  }
+});
+
+// ---- Welcome messages ----
+client.on('guildMemberAdd', async (member) => {
+  try {
+    await handleMemberJoin(member, api);
+  } catch (err) {
+    logger.error(`Fout bij afhandelen welkomstbericht voor ${member.id} in ${member.guild.id}:`, err);
   }
 });
 

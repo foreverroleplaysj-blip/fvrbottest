@@ -136,12 +136,14 @@ document.querySelectorAll('.nav-item').forEach((btn) => {
       types: ['Ticket types', 'Beheer de opties die gebruikers kunnen kiezen in het panel.'],
       tickets: ['Open tickets', 'Overzicht van alle momenteel open of geclaimde tickets.'],
       giveaways: ['Giveaways', 'Overzicht van lopende en afgelopen giveaways in deze server.'],
+      welcome: ['Welkomstbericht', 'Stel in wat er gebeurt zodra iemand de server joint.'],
     };
     $('pageTitle').textContent = titles[btn.dataset.tab][0];
     $('pageSubtitle').textContent = titles[btn.dataset.tab][1];
 
     if (btn.dataset.tab === 'tickets') loadTickets();
     if (btn.dataset.tab === 'giveaways') loadGiveaways();
+    if (btn.dataset.tab === 'welcome') loadWelcomeConfig();
   });
 });
 
@@ -484,11 +486,125 @@ function renderGiveawayList(container, giveaways, emptyText, badgeText) {
 
 $('refreshGiveawaysBtn').addEventListener('click', loadGiveaways);
 
+// ---- Welcome message tab ----
+function fillWelcomeForm(config) {
+  $('wc_enabled').checked = !!config.enabled;
+  $('wc_channelId').value = config.channelId || '';
+  $('wc_content').value = config.content || '';
+  $('wc_embedEnabled').checked = !!config.embedEnabled;
+  $('wc_embedTitle').value = config.embedTitle || '';
+  $('wc_embedDescription').value = config.embedDescription || '';
+  $('wc_embedColor').value = config.embedColor || '10b981';
+  $('wc_embedColorPicker').value = `#${config.embedColor || '10b981'}`;
+  $('wc_embedImage').value = config.embedImage || '';
+  $('wc_embedFooter').value = config.embedFooter || '';
+  $('wc_useAvatarThumbnail').checked = !!config.useAvatarThumbnail;
+  $('wc_autoRoleId').value = config.autoRoleId || '';
+  $('wc_dmEnabled').checked = !!config.dmEnabled;
+  $('wc_dmMessage').value = config.dmMessage || '';
+  updateWelcomePreview();
+}
+
+const WELCOME_PREVIEW_MEMBER = { user: 'NieuwLid', server: state.guildName || 'de server', membercount: '128' };
+
+function fillWelcomePreviewPlaceholders(text) {
+  return String(text || '')
+    .replaceAll('{user}', `@${WELCOME_PREVIEW_MEMBER.user}`)
+    .replaceAll('{username}', WELCOME_PREVIEW_MEMBER.user)
+    .replaceAll('{server}', state.guildName || WELCOME_PREVIEW_MEMBER.server)
+    .replaceAll('{membercount}', WELCOME_PREVIEW_MEMBER.membercount);
+}
+
+function updateWelcomePreview() {
+  const enabled = $('wc_embedEnabled').checked;
+  $('wcPreviewEmbed').classList.toggle('hidden', !enabled);
+  if (!enabled) return;
+
+  $('wcPreviewBar').style.background = `#${($('wc_embedColor').value || '10b981').replace('#', '')}`;
+  $('wcPreviewTitle').textContent = fillWelcomePreviewPlaceholders($('wc_embedTitle').value) || 'Welkom op de server!';
+  $('wcPreviewDesc').textContent = fillWelcomePreviewPlaceholders($('wc_embedDescription').value);
+  $('wcPreviewFooter').textContent = $('wc_embedFooter').value || '';
+
+  const thumb = $('wc_useAvatarThumbnail').checked;
+  $('wcPreviewThumb').src = thumb ? 'https://cdn.discordapp.com/embed/avatars/1.png' : '';
+  $('wcPreviewThumb').classList.toggle('hidden', !thumb);
+
+  const image = $('wc_embedImage').value;
+  $('wcPreviewImage').src = image;
+  $('wcPreviewImage').classList.toggle('hidden', !image);
+}
+
+[
+  'wc_embedTitle',
+  'wc_embedDescription',
+  'wc_embedFooter',
+  'wc_embedImage',
+  'wc_embedEnabled',
+  'wc_useAvatarThumbnail',
+].forEach((id) => $(id).addEventListener('input', updateWelcomePreview));
+
+$('wc_embedColorPicker').addEventListener('input', () => {
+  $('wc_embedColor').value = $('wc_embedColorPicker').value.replace('#', '');
+  updateWelcomePreview();
+});
+$('wc_embedColor').addEventListener('input', () => {
+  const clean = $('wc_embedColor').value.replace('#', '');
+  if (/^[0-9a-fA-F]{6}$/.test(clean)) $('wc_embedColorPicker').value = `#${clean}`;
+  updateWelcomePreview();
+});
+
+async function loadWelcomeConfig() {
+  try {
+    const { config } = await api('GET', `/welcome/config/${state.guildId}`);
+    fillWelcomeForm(config);
+  } catch (err) {
+    $('saveWelcomeStatus').style.color = 'var(--danger)';
+    $('saveWelcomeStatus').textContent = `❌ Laden mislukt: ${err.message}`;
+  }
+}
+
+$('saveWelcomeBtn').addEventListener('click', async () => {
+  const btn = $('saveWelcomeBtn');
+  const status = $('saveWelcomeStatus');
+  btn.disabled = true;
+  status.style.color = 'var(--success)';
+  status.textContent = 'Opslaan...';
+
+  const fields = {
+    enabled: $('wc_enabled').checked,
+    channelId: $('wc_channelId').value || null,
+    content: $('wc_content').value,
+    embedEnabled: $('wc_embedEnabled').checked,
+    embedTitle: $('wc_embedTitle').value,
+    embedDescription: $('wc_embedDescription').value,
+    embedColor: $('wc_embedColor').value.replace('#', '') || '10b981',
+    embedImage: $('wc_embedImage').value || null,
+    embedFooter: $('wc_embedFooter').value || null,
+    useAvatarThumbnail: $('wc_useAvatarThumbnail').checked,
+    autoRoleId: $('wc_autoRoleId').value || null,
+    dmEnabled: $('wc_dmEnabled').checked,
+    dmMessage: $('wc_dmMessage').value,
+  };
+
+  try {
+    const { config } = await api('POST', '/welcome/config', { guildId: state.guildId, ...fields });
+    fillWelcomeForm(config);
+    status.textContent = '✅ Opgeslagen';
+  } catch (err) {
+    status.style.color = 'var(--danger)';
+    status.textContent = `❌ ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => (status.textContent = ''), 4000);
+  }
+});
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str ?? '';
   return div.innerHTML;
 }
+
 
 // ---- Boot into the per-server settings dashboard ----
 async function boot() {

@@ -99,6 +99,9 @@ const api = {
   claimTicket: (channelId, claimedBy) => request('POST', '/tickets/claim', { channelId, claimedBy }),
   closeTicket: (channelId, closedBy, reason) => request('POST', '/tickets/close', { channelId, closedBy, reason }),
 
+  // ---- Welcome messages ----
+  getWelcomeConfig: (guildId) => request('GET', `/welcome/config/${guildId}`),
+
   // ---- Giveaways ----
   createGiveaway: (data) => request('POST', '/giveaways/create', data),
   enterGiveaway: (id, userId) => request('POST', '/giveaways/enter', { id, userId }),

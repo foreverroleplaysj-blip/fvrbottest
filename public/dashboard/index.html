@@ -50,6 +50,7 @@
       <button class="nav-item" data-tab="types">🏷️ Ticket types</button>
       <button class="nav-item" data-tab="tickets">📋 Open tickets</button>
       <button class="nav-item" data-tab="giveaways">🎉 Giveaways</button>
+      <button class="nav-item" data-tab="welcome">👋 Welkomstbericht</button>
     </nav>
 
     <div class="sidebar-footer">
@@ -304,6 +305,122 @@
       <div class="panel-card">
         <h2>Afgelopen giveaways <span class="hint">(laatste 50)</span></h2>
         <div id="endedGiveawaysList" class="tickets-list"></div>
+      </div>
+    </section>
+
+    <!-- ---- Welcome message tab ---- -->
+    <section id="tab-welcome" class="tab-panel hidden">
+      <div class="panel-card">
+        <div class="toggle-row">
+          <label class="toggle">
+            <input id="wc_enabled" type="checkbox" />
+            <span class="toggle-slider"></span>
+          </label>
+          <div>
+            <div class="toggle-label">Welkomstbericht aan</div>
+            <div class="toggle-sub muted">Post automatisch een bericht zodra iemand de server joint</div>
+          </div>
+        </div>
+
+        <label>Kanaal ID</label>
+        <input id="wc_channelId" type="text" placeholder="Discord kanaal ID" />
+
+        <label>Berichttekst <span class="hint">(los van de embed, bv. een ping). Placeholders: <code>{user}</code> <code>{username}</code> <code>{server}</code> <code>{membercount}</code></span></label>
+        <textarea id="wc_content" rows="2" maxlength="2000" placeholder="Welkom {user}! 🎉"></textarea>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel-card">
+          <div class="toggle-row">
+            <label class="toggle">
+              <input id="wc_embedEnabled" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <div class="toggle-label">Embed tonen</div>
+              <div class="toggle-sub muted">Het opgemaakte kaartje onder het bericht</div>
+            </div>
+          </div>
+
+          <label>Titel</label>
+          <input id="wc_embedTitle" type="text" maxlength="256" />
+
+          <label>Beschrijving</label>
+          <textarea id="wc_embedDescription" rows="4" maxlength="2000"></textarea>
+
+          <label>Kleur</label>
+          <div class="color-row">
+            <input id="wc_embedColorPicker" type="color" value="#10b981" />
+            <input id="wc_embedColor" type="text" maxlength="7" placeholder="10b981" />
+          </div>
+
+          <label>Banner afbeelding (URL)</label>
+          <input id="wc_embedImage" type="text" placeholder="https://..." />
+
+          <label>Footer tekst</label>
+          <input id="wc_embedFooter" type="text" maxlength="2048" />
+
+          <div class="toggle-row">
+            <label class="toggle">
+              <input id="wc_useAvatarThumbnail" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <div class="toggle-label">Avatar als thumbnail</div>
+              <div class="toggle-sub muted">Toont de profielfoto van het nieuwe lid rechtsboven in de embed</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <h2>Live preview</h2>
+          <div class="discord-preview">
+            <div class="discord-embed" id="wcPreviewEmbed">
+              <div class="discord-embed-bar" id="wcPreviewBar"></div>
+              <div class="discord-embed-body">
+                <img id="wcPreviewThumb" class="discord-embed-thumb hidden" />
+                <div class="discord-embed-title" id="wcPreviewTitle">Welkom op de server!</div>
+                <div class="discord-embed-desc" id="wcPreviewDesc"></div>
+                <img id="wcPreviewImage" class="discord-embed-image hidden" />
+                <div class="discord-embed-footer" id="wcPreviewFooter"></div>
+              </div>
+            </div>
+          </div>
+          <p class="muted hint">Placeholders worden in de preview vervangen door voorbeeldwaarden — in Discord door het echte lid.</p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel-card">
+          <h2>Extra</h2>
+
+          <label>Auto-rol ID <span class="hint">(optioneel — wordt automatisch toegekend bij joinen)</span></label>
+          <input id="wc_autoRoleId" type="text" placeholder="Discord rol ID" />
+
+          <div class="toggle-row">
+            <label class="toggle">
+              <input id="wc_dmEnabled" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <div class="toggle-label">Ook een DM sturen</div>
+              <div class="toggle-sub muted">Stuurt daarnaast een privébericht naar het nieuwe lid (mislukt stilletjes als DM's dicht staan)</div>
+            </div>
+          </div>
+
+          <label>DM-tekst</label>
+          <textarea id="wc_dmMessage" rows="3" maxlength="2000"></textarea>
+        </div>
+
+        <div class="panel-card notice">
+          <strong>Testen</strong>
+          <p class="muted">Sla eerst op, gebruik daarna in Discord <code>/welcome-test</code> om direct een voorbeeld naar het ingestelde kanaal te sturen — zonder dat iemand echt hoeft te joinen.</p>
+        </div>
+      </div>
+
+      <div class="save-bar">
+        <button id="saveWelcomeBtn" class="btn btn-primary">💾 Instellingen opslaan</button>
+        <span id="saveWelcomeStatus" class="save-status"></span>
       </div>
     </section>
   </main>

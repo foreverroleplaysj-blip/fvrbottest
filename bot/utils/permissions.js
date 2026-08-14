@@ -36,6 +36,7 @@ const MANAGEMENT_COMMANDS = new Set([
   'giveaway-start',
   'giveaway-end',
   'giveaway-reroll',
+  'welcome-test',
 ]);
 
 // Commands staff are explicitly allowed to run.

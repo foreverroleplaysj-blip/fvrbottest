@@ -15,6 +15,7 @@ const serversRoutes = require('./routes/servers');
 const playersRoutes = require('./routes/players');
 const ticketsRoutes = require('./routes/tickets');
 const giveawaysRoutes = require('./routes/giveaways');
+const welcomeRoutes = require('./routes/welcome');
 const authRoutes = require('./routes/auth');
 const discordGuildsRoutes = require('./routes/discordGuilds');
 const { initDb } = require('./database');
@@ -94,6 +95,10 @@ app.use('/tickets', ticketsRoutes);
 // session scoped to that guild — see the per-route middleware inside
 // routes/giveaways.js.
 app.use('/giveaways', giveawaysRoutes);
+
+// Welcome-message routes: same mixed auth (bot's X-API-Key, or a
+// dashboard session scoped to that guild) — see routes/welcome.js.
+app.use('/welcome', welcomeRoutes);
 
 // ---- Dashboard login ("Inloggen met Discord") ----
 // No requireApiKey here — this is what lets the browser authenticate
