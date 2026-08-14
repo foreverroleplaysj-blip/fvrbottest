@@ -7,7 +7,7 @@ const config = require('../config');
 function base() {
   return new EmbedBuilder()
     .setTimestamp()
-    .setFooter({ text: 'Forever Roleplay' });
+    .setFooter({ text: '© Forever Roleplay — All rights reserved' });
 }
 
 function success(title, description) {

@@ -29,7 +29,7 @@ const DEFAULT_CONFIG = {
   panel_color: '1e3a8a',
   panel_image: null,
   panel_thumbnail: null,
-  panel_footer: null,
+  panel_footer: '© Forever Roleplay — All rights reserved',
   category_id: null,
   log_channel_id: null,
   transcript_channel_id: null,
