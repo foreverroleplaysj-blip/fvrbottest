@@ -250,13 +250,15 @@ async function handleCloseButton(interaction) {
       return;
     }
 
+    const { config } = await api.getTicketConfig(interaction.guildId);
+    const supportRoleId = type?.supportRoleId || config.supportRoleId;
+    const hasSupportRole = supportRoleId ? (interaction.member?.roles?.cache?.has(supportRoleId) ?? false) : false;
+
     const isOpener = interaction.user.id === ticket.openerId;
-    if (!isOpener && !canManageTickets(interaction)) {
+    if (!isOpener && !hasSupportRole && !canManageTickets(interaction)) {
       await interaction.editReply({ embeds: [embeds.error('Geen toestemming', 'Alleen de opener of een teamlid kan dit ticket sluiten.')] });
       return;
     }
-
-    const { config } = await api.getTicketConfig(interaction.guildId);
 
     await closeTicketChannel({
       interaction,
