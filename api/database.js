@@ -159,12 +159,35 @@ CREATE TABLE IF NOT EXISTS tickets (
   closed_at INTEGER
 );
 
+-- ---- Giveaways ----
+-- Classic reaction-based giveaway (🎉), same spirit as GiveawayBot. Entries
+-- are never stored separately — at draw time the bot pulls the live list of
+-- users who reacted directly from Discord, so this table only needs to
+-- remember what the giveaway IS and how it ended.
+CREATE TABLE IF NOT EXISTS giveaways (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  guild_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  message_id TEXT UNIQUE NOT NULL,
+  prize TEXT NOT NULL,
+  winner_count INTEGER NOT NULL DEFAULT 1,
+  host_id TEXT NOT NULL,
+  required_role_id TEXT,
+  status TEXT NOT NULL DEFAULT 'active', -- active | ended | cancelled
+  winners TEXT, -- JSON array of Discord user IDs, set once ended
+  ends_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  ended_at INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS idx_accounts_roblox_id ON accounts(roblox_id);
 CREATE INDEX IF NOT EXISTS idx_commands_roblox_id_status ON commands(roblox_id, status);
 CREATE INDEX IF NOT EXISTS idx_bans_roblox_id_active ON bans(roblox_id, active);
 CREATE INDEX IF NOT EXISTS idx_ticket_types_guild ON ticket_types(guild_id, position);
 CREATE INDEX IF NOT EXISTS idx_tickets_guild_status ON tickets(guild_id, status);
 CREATE INDEX IF NOT EXISTS idx_tickets_opener_status ON tickets(opener_id, status);
+CREATE INDEX IF NOT EXISTS idx_giveaways_status ON giveaways(status, ends_at);
+CREATE INDEX IF NOT EXISTS idx_giveaways_guild ON giveaways(guild_id, status);
 `;
 
 // Columns added after the initial release. CREATE TABLE IF NOT EXISTS does

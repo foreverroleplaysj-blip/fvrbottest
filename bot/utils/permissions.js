@@ -33,6 +33,9 @@ const MANAGEMENT_COMMANDS = new Set([
   'ticket-removetype',
   'ticket-listtypes',
   'ticket-send',
+  'giveaway-start',
+  'giveaway-end',
+  'giveaway-reroll',
 ]);
 
 // Commands staff are explicitly allowed to run.
@@ -48,6 +51,7 @@ const STAFF_COMMANDS = new Set([
   'ticket-add',
   'ticket-remove',
   'ticket-list',
+  'giveaway-list',
 ]);
 
 // Commands anyone (verified guild member) may run.

@@ -99,6 +99,15 @@ const api = {
   claimTicket: (channelId, claimedBy) => request('POST', '/tickets/claim', { channelId, claimedBy }),
   closeTicket: (channelId, closedBy, reason) => request('POST', '/tickets/close', { channelId, closedBy, reason }),
 
+  // ---- Giveaways ----
+  createGiveaway: (data) => request('POST', '/giveaways/create', data),
+  getActiveGiveaways: () => request('GET', '/giveaways/active'),
+  getGiveaway: (id) => request('GET', `/giveaways/${id}`),
+  listGuildGiveaways: (guildId, status) => request('GET', `/giveaways/guild/${guildId}${status ? `?status=${status}` : ''}`),
+  endGiveaway: (id, winners) => request('POST', '/giveaways/end', { id, winners }),
+  rerollGiveaway: (id, winners) => request('POST', '/giveaways/reroll', { id, winners }),
+  cancelGiveaway: (id) => request('POST', '/giveaways/cancel', { id }),
+
   /**
    * Poll a command until it reaches a terminal status (completed/failed/expired)
    * or the timeout is hit. Used for "read-back" commands like /checkgeld where

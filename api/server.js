@@ -14,6 +14,7 @@ const robloxRoutes = require('./routes/roblox');
 const serversRoutes = require('./routes/servers');
 const playersRoutes = require('./routes/players');
 const ticketsRoutes = require('./routes/tickets');
+const giveawaysRoutes = require('./routes/giveaways');
 const authRoutes = require('./routes/auth');
 const discordGuildsRoutes = require('./routes/discordGuilds');
 const { initDb } = require('./database');
@@ -87,6 +88,12 @@ app.use('/players', requireApiKey, playersRoutes);
 // session scoped to that guild — see the per-route middleware inside
 // routes/tickets.js.
 app.use('/tickets', ticketsRoutes);
+
+// Giveaway routes have the same mixed auth as tickets: bot-only endpoints
+// require X-API-Key, dashboard-facing endpoints also accept a Discord-login
+// session scoped to that guild — see the per-route middleware inside
+// routes/giveaways.js.
+app.use('/giveaways', giveawaysRoutes);
 
 // ---- Dashboard login ("Inloggen met Discord") ----
 // No requireApiKey here — this is what lets the browser authenticate

@@ -10,6 +10,7 @@ const embeds = require('./utils/embeds');
 const logger = require('./utils/logger');
 const ticketInteractions = require('./handlers/ticketInteractions');
 const api = require('./utils/api');
+const { startGiveawayScheduler } = require('./giveawayScheduler');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],
@@ -48,6 +49,8 @@ client.once('ready', async () => {
   } catch (err) {
     logger.error('Kon serverlijst niet synchroniseren met de API:', err);
   }
+
+  startGiveawayScheduler(client);
 });
 
 // Keeps the dashboard's server list live as the bot is added to / removed
