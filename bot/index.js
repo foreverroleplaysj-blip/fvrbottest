@@ -10,6 +10,7 @@ const embeds = require('./utils/embeds');
 const logger = require('./utils/logger');
 const ticketInteractions = require('./handlers/ticketInteractions');
 const giveawayInteractions = require('./handlers/giveawayInteractions');
+const verifyInteractions = require('./handlers/verifyInteractions');
 const { handleMemberJoin } = require('./utils/welcome');
 const api = require('./utils/api');
 const { startGiveawayScheduler } = require('./giveawayScheduler');
@@ -114,6 +115,15 @@ client.on('interactionCreate', async (interaction) => {
       await giveawayInteractions.handleGiveawayInteraction(interaction);
     } catch (err) {
       logger.error('Fout bij giveaway interactie:', err);
+    }
+    return;
+  }
+
+  if (verifyInteractions.isVerifyInteraction(interaction)) {
+    try {
+      await verifyInteractions.handleVerifyInteraction(interaction);
+    } catch (err) {
+      logger.error('Fout bij verify interactie:', err);
     }
     return;
   }

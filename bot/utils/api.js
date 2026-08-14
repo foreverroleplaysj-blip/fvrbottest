@@ -60,6 +60,9 @@ const api = {
 
   getAllVerifications: () => request('GET', '/verification/list'),
 
+  linkDirect: (discordId, robloxId, robloxUsername) =>
+    request('POST', '/verification/link-direct', { discordId, robloxId, robloxUsername }),
+
   unverify: (discordId, actorDiscordId) =>
     request('POST', '/verification/unverify', { discordId, actorDiscordId }),
 

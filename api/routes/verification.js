@@ -124,6 +124,69 @@ router.post(
   })
 );
 
+// POST /verification/link-direct  { discordId, robloxId, robloxUsername }
+// Used by the Discord button + modal flow: the Discord side has already
+// authenticated the user via the interaction, and the bot has already
+// confirmed the Roblox username exists via the Roblox API — so this skips
+// the FVR-XXXXXX code exchange entirely. Same uniqueness guarantees as
+// /complete: one Discord account <-> one Roblox account.
+router.post(
+  '/link-direct',
+  asyncHandler(async (req, res) => {
+    const { discordId, robloxId, robloxUsername } = req.body || {};
+
+    if (!isDiscordId(discordId)) {
+      return res.status(400).json({ error: 'Invalid or missing discordId' });
+    }
+    if (!isRobloxId(robloxId)) {
+      return res.status(400).json({ error: 'Invalid or missing robloxId' });
+    }
+    if (typeof robloxUsername !== 'string' || robloxUsername.length < 3 || robloxUsername.length > 32) {
+      return res.status(400).json({ error: 'Invalid robloxUsername' });
+    }
+
+    const existingResult = await db.execute({
+      sql: 'SELECT * FROM accounts WHERE discord_id = ?',
+      args: [discordId],
+    });
+    const existing = existingResult.rows[0];
+
+    if (existing && existing.verified) {
+      return res.status(409).json({ error: 'This Discord account is already verified' });
+    }
+
+    const robloxAlreadyResult = await db.execute({
+      sql: 'SELECT * FROM accounts WHERE roblox_id = ? AND verified = 1',
+      args: [String(robloxId)],
+    });
+    if (robloxAlreadyResult.rows[0]) {
+      return res.status(409).json({ error: 'This Roblox account is already linked to a Discord account' });
+    }
+
+    const now = Date.now();
+
+    if (existing) {
+      await db.execute({
+        sql: `UPDATE accounts
+              SET roblox_id = ?, roblox_username = ?, verified = 1,
+                  verification_code = NULL, verification_expires = NULL, updated_at = ?
+              WHERE discord_id = ?`,
+        args: [String(robloxId), robloxUsername, now, discordId],
+      });
+    } else {
+      await db.execute({
+        sql: `INSERT INTO accounts (discord_id, roblox_id, roblox_username, verified, created_at, updated_at)
+              VALUES (?, ?, ?, 1, ?, ?)`,
+        args: [discordId, String(robloxId), robloxUsername, now, now],
+      });
+    }
+
+    await logAudit('VERIFY_DIRECT', discordId, robloxId, `Linked to ${robloxUsername} via button/modal`);
+
+    res.json({ success: true, discordId, robloxId: String(robloxId), robloxUsername });
+  })
+);
+
 // GET /verification/list
 // Returns every verified account. Used by /checkverify in Discord.
 router.get(
